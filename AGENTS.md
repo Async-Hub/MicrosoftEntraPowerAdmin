@@ -1369,3 +1369,7 @@ Reuse official SDK functionality.
 Keep UI markup separate from component logic.
 Keep the solution as simple as the problem allows.
 ```
+
+# Code formatting
+
+Use .editorconfig to enforce consistent code formatting across the solution.

@@ -1,0 +1,15 @@
+@page "/"
+@attribute [AllowAnonymous]
+
+<PageTitle>Microsoft Entra Power Admin</PageTitle>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Microsoft Entra Power Admin</MudText>
+<MudText Class="mb-4">MEPA</MudText>
+<AuthorizeView>
+    <Authorized>
+        <MudButton Href="admin" Variant="Variant.Filled" Color="Color.Primary">Open administration</MudButton>
+    </Authorized>
+    <NotAuthorized>
+        <MudText Class="mb-4">Sign in with your organizational Microsoft Entra account.</MudText>
+        <MudButton Href="account/signin" data-enhance-nav="false" Variant="Variant.Filled" Color="Color.Primary">Sign in</MudButton>
+    </NotAuthorized>
+</AuthorizeView>

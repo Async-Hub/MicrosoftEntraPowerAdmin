@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="Theme" IsDarkMode="false" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar>
+        <MudText Typo="Typo.h6">Microsoft Entra Power Admin</MudText>
+        <MudSpacer />
+        <UserMenu />
+    </MudAppBar>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+            <AuthorizeView>
+                <TenantSelector />
+            </AuthorizeView>
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+<div id="blazor-error-ui" role="alert">
+    An unexpected error occurred. <a href="">Reload MEPA</a>
+</div>

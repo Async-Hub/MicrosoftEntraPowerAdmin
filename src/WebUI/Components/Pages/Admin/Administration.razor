@@ -1,0 +1,9 @@
+@page "/admin"
+
+<PageTitle>Administration - MEPA</PageTitle>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Administration</MudText>
+@if (TenantContext.CurrentTenant.HasValue)
+{
+    <MudText role="status">Selected administration tenant: @TenantContext.CurrentTenant.Value.Name</MudText>
+}
+<MudText Class="mt-4">Administration features will be available in a later release.</MudText>

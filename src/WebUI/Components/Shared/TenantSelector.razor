@@ -1,0 +1,21 @@
+<MudPaper Class="pa-4 mb-6" Outlined="true">
+    <MudSelect T="Guid?" Label="Administration tenant" Value="SelectedTenantId"
+               ValueChanged="SelectTenant" Placeholder="Select a tenant" Variant="Variant.Outlined">
+        @foreach (var tenant in TenantContext.Tenants)
+        {
+            <MudSelectItem T="Guid?" Value="@((Guid?)tenant.TenantId)">@tenant.Name</MudSelectItem>
+        }
+    </MudSelect>
+    @if (TenantContext.CurrentTenant.HasValue)
+    {
+        <MudText Typo="Typo.caption">Tenant ID: @TenantContext.CurrentTenant.Value.TenantId</MudText>
+    }
+    else
+    {
+        <MudText Class="mt-2" role="status">Select a tenant to continue.</MudText>
+    }
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+    }
+</MudPaper>

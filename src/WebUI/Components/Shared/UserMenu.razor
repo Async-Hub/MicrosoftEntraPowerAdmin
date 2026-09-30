@@ -1,0 +1,17 @@
+<AuthorizeView>
+    <Authorized Context="authenticationState">
+        <div class="user-menu">
+            <div>
+                <MudText Typo="Typo.body2">@GetDisplayName(authenticationState.User)</MudText>
+                <MudText Typo="Typo.caption">@GetUserName(authenticationState.User)</MudText>
+            </div>
+            <form action="account/signout" method="post" data-enhance="false">
+                <AntiforgeryToken />
+                <MudButton ButtonType="ButtonType.Submit" Color="Color.Inherit">Sign out</MudButton>
+            </form>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <MudButton Href="account/signin" data-enhance-nav="false" Color="Color.Inherit">Sign in</MudButton>
+    </NotAuthorized>
+</AuthorizeView>

@@ -1,0 +1,11 @@
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+            <NotAuthorized>
+                <MudText Class="mb-4">Sign in with Microsoft Entra to enter MEPA.</MudText>
+                <MudButton Href="account/signin" data-enhance-nav="false" Variant="Variant.Filled" Color="Color.Primary">Sign in</MudButton>
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/WebUI/AsyncHub.MicrosoftEntraPowerAdmin.WebUI.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WebUI.Tests/AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tests.csproj" />
+  </Folder>
 </Solution>
