@@ -1,8 +1,11 @@
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Authentication;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using MudBlazor.Services;
 
@@ -12,6 +15,12 @@ builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
     .EnableTokenAcquisitionToCallDownstreamApi()
     .AddInMemoryTokenCaches();
+
+builder.Services.AddOptions<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme)
+    .Configure<IOptions<MicrosoftEntraPowerAdminOptions>>((options, tenants) =>
+        TenantAuthentication.Configure(options, tenants.Value));
+builder.Services.AddScoped<IEntraGraphClientFactory, EntraGraphClientFactory>();
+builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 
 builder.Services.AddOptions<MicrosoftIdentityOptions>(OpenIdConnectDefaults.AuthenticationScheme)
     .Validate(options => options.TenantId == "organizations",
@@ -23,12 +32,12 @@ builder.Services.AddOptions<MicrosoftIdentityOptions>(OpenIdConnectDefaults.Auth
 builder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
     .Configure<ILoggerFactory>((options, loggerFactory) =>
     {
-        var previousSignedIn = options.Events.OnSignedIn;
-        options.Events.OnSignedIn = async context =>
-        {
-            await previousSignedIn(context);
-            loggerFactory.CreateLogger("MEPA.Authentication").LogInformation("User signed in");
-        };
+      var previousSignedIn = options.Events.OnSignedIn;
+      options.Events.OnSignedIn = async context =>
+      {
+        await previousSignedIn(context);
+        loggerFactory.CreateLogger("MEPA.Authentication").LogInformation("User signed in");
+      };
     });
 
 builder.Services.AddAuthorization(options =>
@@ -43,8 +52,8 @@ var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/error", createScopeForErrors: true);
-    app.UseHsts();
+  app.UseExceptionHandler("/error", createScopeForErrors: true);
+  app.UseHsts();
 }
 
 app.UseHttpsRedirection();

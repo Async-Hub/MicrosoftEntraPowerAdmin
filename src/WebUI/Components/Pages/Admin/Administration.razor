@@ -1,9 +1,42 @@
 @page "/admin"
+@using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants
 
 <PageTitle>Administration - MEPA</PageTitle>
 <MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Administration</MudText>
-@if (TenantContext.CurrentTenant.HasValue)
-{
-    <MudText role="status">Selected administration tenant: @TenantContext.CurrentTenant.Value.Name</MudText>
-}
-<MudText Class="mt-4">Administration features will be available in a later release.</MudText>
+<MudPaper Class="pa-4" Outlined="true">
+  <MudText Typo="Typo.h6" HtmlTag="h2">Current Tenant</MudText>
+  @if (_connection.Tenant is { } tenant)
+  {
+    <MudText>Configured name: @tenant.Name</MudText>
+    <MudText>Tenant ID: @tenant.TenantId</MudText>
+  }
+  @if (_connection.Organization is { } organization)
+  {
+    <MudText>Organization: @organization.DisplayName</MudText>
+    <MudText>Verified domains: @string.Join(", ", organization.VerifiedDomains)</MudText>
+  }
+  <MudText role="status" aria-live="polite">Microsoft Graph: @StatusText</MudText>
+  @if (_connection.State == TenantConnectionState.Connecting)
+  {
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-2" />
+  }
+  @if (_connection.State == TenantConnectionState.InteractionRequired && _connection.Tenant is { } challengeTenant)
+  {
+    <MudAlert Severity="Severity.Warning" Class="mt-3">
+      Additional authentication or consent is required for @challengeTenant.Name.
+    </MudAlert>
+    <form action="account/connect-tenant" method="post" data-enhance="false" class="mt-3">
+      <AntiforgeryToken />
+      <input type="hidden" name="tenantId" value="@challengeTenant.TenantId" />
+      <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Authenticate tenant</MudButton>
+    </form>
+  }
+  else if (_connection.Error is { } error)
+  {
+    <MudAlert Severity="Severity.Error" Class="mt-3">@error.Message</MudAlert>
+  }
+  @if (_connection.Tenant is not null && _connection.State != TenantConnectionState.Connecting)
+  {
+    <MudButton OnClick="LoadAsync" Class="mt-3">Refresh connection</MudButton>
+  }
+</MudPaper>

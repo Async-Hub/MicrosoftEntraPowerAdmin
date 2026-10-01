@@ -1,0 +1,6 @@
+namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
+
+public static class GraphScopes
+{
+  public const string UserRead = "https://graph.microsoft.com/User.Read";
+}
