@@ -7,7 +7,7 @@ using Microsoft.Kiota.Abstractions;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 
-// Shared tenant lifetime and error boundary for the two directory browsing services.
+// Shared tenant lifetime and error boundary for read-only directory discovery.
 public sealed class DirectoryReadOperation : IDisposable
 {
   private readonly ICurrentTenantContext _tenants;
@@ -26,13 +26,13 @@ public sealed class DirectoryReadOperation : IDisposable
 
   internal async Task<Result<T, GraphOperationError>> RunAsync<T>(
     Func<GraphServiceClient, Task<Result<T, GraphOperationError>>> read,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken, bool policyRead = false)
   {
     cancellationToken.ThrowIfCancellationRequested();
     var tenant = _tenants.CurrentTenant;
     var selection = _selectionId;
     if (tenant.HasNoValue)
-      return new GraphOperationError(GraphOperationErrorType.TenantNotSelected, "Select a tenant to browse applications.");
+      return new GraphOperationError(GraphOperationErrorType.TenantNotSelected, "Select a tenant to browse directory objects.");
 
     try
     {
@@ -48,11 +48,11 @@ public sealed class DirectoryReadOperation : IDisposable
     }
     catch (MicrosoftIdentityWebChallengeUserException exception)
     {
-      return Failure(GraphErrorMapping.From(exception.MsalUiRequiredException));
+      return Failure(AuthenticationError(GraphErrorMapping.From(exception.MsalUiRequiredException), policyRead));
     }
     catch (MsalUiRequiredException exception)
     {
-      return Failure(GraphErrorMapping.From(exception));
+      return Failure(AuthenticationError(GraphErrorMapping.From(exception), policyRead));
     }
     catch (MsalException exception)
     {
@@ -66,8 +66,10 @@ public sealed class DirectoryReadOperation : IDisposable
         Type = exception.ResponseStatusCode == 404 ? GraphOperationErrorType.NotFound : error.Type,
         Message = exception.ResponseStatusCode switch
         {
+          403 when policyRead => "Access denied. Check delegated Policy.Read.All and Application.Read.All admin consent and your directory privileges. If consent is already granted, Microsoft's documented claims mapping policy permissions issue may still cause a denial.",
           403 => "Access denied. Ask an administrator to grant delegated Application.Read.All admin consent in this tenant and check your directory privileges.",
           404 => "The object was not found in the current tenant.",
+          _ when error.Type == GraphOperationErrorType.GraphFailure && policyRead => "Microsoft Graph could not retrieve the claims mapping policies. Try again later.",
           _ when error.Type == GraphOperationErrorType.GraphFailure => "Microsoft Graph could not retrieve the applications. Try again later.",
           _ => error.Message
         }
@@ -85,6 +87,13 @@ public sealed class DirectoryReadOperation : IDisposable
 
   internal bool IsValid(DirectoryContinuation continuation, string collection) =>
     continuation.SelectionId == _selectionId && IsCollectionUrl(continuation.Url, collection);
+
+  internal Guid SelectionId => _selectionId;
+
+  private static GraphOperationError AuthenticationError(GraphOperationError error, bool policyRead) =>
+    policyRead && error.Type == GraphOperationErrorType.ConsentRequired
+      ? error with { Message = "Delegated Policy.Read.All and Application.Read.All admin consent is required in this tenant. Authenticate the tenant after consent is granted." }
+      : error;
 
   internal Result<DirectoryContinuation?, GraphOperationError> Continuation(string? url, string collection)
   {

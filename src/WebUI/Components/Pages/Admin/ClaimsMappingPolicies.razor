@@ -1,0 +1,10 @@
+@page "/claims-mapping-policies"
+
+<PageTitle>Claims Mapping Policies - MEPA</PageTitle>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Claims Mapping Policies</MudText>
+<DirectoryStatus Error="_state.Error" IsLoading="_state.IsLoading" />
+<MudButton OnClick="LoadAsync" Disabled="@(_state.IsLoading || !HasTenant)" Class="mb-3" Variant="Variant.Outlined">Refresh</MudButton>
+@if (_state.Value is { } policies)
+{
+  <ClaimsMappingPolicyTable Policies="policies" OnOpen="Open" />
+}

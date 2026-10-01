@@ -1,0 +1,19 @@
+<MudTable Items="Policies" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+  <HeaderContent>
+    <MudTh>Display Name</MudTh>
+    <MudTh>Policy Object ID</MudTh>
+    <MudTh>Has Definition</MudTh>
+    <MudTh>Parsed ClaimsSchema Entries</MudTh>
+    <MudTh>Parsed ClaimsTransformation Entries</MudTh>
+    <MudTh>Details</MudTh>
+  </HeaderContent>
+  <RowTemplate>
+    <MudTd DataLabel="Display Name">@context.DisplayName</MudTd>
+    <MudTd DataLabel="Policy Object ID"><CopyIdentifier Value="context.ObjectId" Label="Policy Object ID" /></MudTd>
+    <MudTd DataLabel="Has Definition">@context.HasDefinition</MudTd>
+    <MudTd DataLabel="Parsed ClaimsSchema Entries">@(context.ClaimsSchemaCount?.ToString() ?? "Not available")</MudTd>
+    <MudTd DataLabel="Parsed ClaimsTransformation Entries">@(context.ClaimsTransformationCount?.ToString() ?? "Not available")</MudTd>
+    <MudTd><MudButton OnClick="@(() => OnOpen.InvokeAsync(context.ObjectId))">Open</MudButton></MudTd>
+  </RowTemplate>
+  <NoRecordsContent><MudText>@EmptyMessage</MudText></NoRecordsContent>
+</MudTable>

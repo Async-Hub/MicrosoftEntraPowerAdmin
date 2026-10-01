@@ -82,7 +82,7 @@ public sealed class ApplicationService(DirectoryReadOperation operation) : IAppl
     "Microsoft Graph returned invalid or ambiguous application data.");
 
   // All callers validate the object ID before mapping. Client ID may be absent.
-  private static ApplicationListItem MapListItem(GraphModel model) => new(
+  internal static ApplicationListItem MapListItem(GraphModel model) => new(
     Guid.Parse(model.Id!), Guid.TryParse(model.AppId, out var appId) && appId != Guid.Empty ? appId : null,
     string.IsNullOrWhiteSpace(model.DisplayName) ? "Name unavailable" : model.DisplayName,
     model.SignInAudience, model.CreatedDateTime, model.PublisherDomain);

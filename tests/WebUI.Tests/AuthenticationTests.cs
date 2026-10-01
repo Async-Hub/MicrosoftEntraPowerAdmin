@@ -46,6 +46,8 @@ public sealed class AuthenticationTests
     Assert.Equal("https://localhost/signin-oidc", query["redirect_uri"].ToString());
     Assert.Contains(GraphScopes.UserRead, query["scope"].ToString());
     Assert.Contains(GraphScopes.ApplicationReadAll, query["scope"].ToString());
+    Assert.Contains(GraphScopes.PolicyReadAll, query["scope"].ToString());
+    Assert.DoesNotContain("Policy.ReadWrite", query["scope"].ToString());
     Assert.DoesNotContain("Directory.Read", query["scope"].ToString());
     Assert.DoesNotContain("Application.ReadWrite", query["scope"].ToString());
     Assert.Equal(TestApplication.RequiredClaims, query["claims"].ToString());
@@ -61,7 +63,7 @@ public sealed class AuthenticationTests
     Assert.Single(schemes, registered => registered.HandlerType == typeof(OpenIdConnectHandler));
 
     await application.Tokens.Received().GetAccessTokenForUserAsync(
-        Arg.Is<IEnumerable<string>>(scopes => scopes.SequenceEqual(new[] { GraphScopes.UserRead, GraphScopes.ApplicationReadAll })),
+        Arg.Is<IEnumerable<string>>(scopes => scopes.SequenceEqual(new[] { GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll })),
         OpenIdConnectDefaults.AuthenticationScheme, tenantId, null,
         Arg.Is<ClaimsPrincipal>(user => user.Identity != null && user.Identity.IsAuthenticated),
         Arg.Is<TokenAcquisitionOptions>(options => options.ForceRefresh));
@@ -123,6 +125,8 @@ public sealed class AuthenticationTests
   [InlineData("/applications/11111111-1111-1111-1111-111111111111")]
   [InlineData("/service-principals")]
   [InlineData("/service-principals/11111111-1111-1111-1111-111111111111")]
+  [InlineData("/claims-mapping-policies")]
+  [InlineData("/claims-mapping-policies/11111111-1111-1111-1111-111111111111")]
   [InlineData("/account/signin")]
   public async Task Anonymous_administration_and_sign_in_challenge_organizational_Entra(string path)
   {

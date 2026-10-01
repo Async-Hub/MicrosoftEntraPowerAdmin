@@ -82,7 +82,7 @@ public sealed class ServicePrincipalService(DirectoryReadOperation operation) : 
     "Microsoft Graph returned invalid or ambiguous service principal data.");
 
   // All callers validate the object ID before mapping. Client ID may be absent.
-  private static ServicePrincipalListItem MapListItem(GraphModel model) => new(
+  internal static ServicePrincipalListItem MapListItem(GraphModel model) => new(
     Guid.Parse(model.Id!), Guid.TryParse(model.AppId, out var appId) && appId != Guid.Empty ? appId : null,
     string.IsNullOrWhiteSpace(model.DisplayName) ? "Name unavailable" : model.DisplayName,
     model.ServicePrincipalType, model.AccountEnabled, model.VerifiedPublisher?.DisplayName);

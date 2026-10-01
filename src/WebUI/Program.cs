@@ -24,6 +24,7 @@ builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<DirectoryReadOperation>();
 builder.Services.AddScoped<IApplicationService, ApplicationService>();
 builder.Services.AddScoped<IServicePrincipalService, ServicePrincipalService>();
+builder.Services.AddScoped<IClaimsMappingPolicyService, ClaimsMappingPolicyService>();
 
 builder.Services.AddOptions<MicrosoftIdentityOptions>(OpenIdConnectDefaults.AuthenticationScheme)
     .Validate(options => options.TenantId == "organizations",

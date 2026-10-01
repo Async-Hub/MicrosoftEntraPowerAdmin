@@ -34,6 +34,7 @@ public sealed class DirectoryDetailsPageTests
     services.AddSingleton<ICurrentTenantContext>(context.Tenants);
     services.AddSingleton(applications);
     services.AddSingleton(principals);
+    services.AddSingleton(Substitute.For<IClaimsMappingPolicyService>());
     await using var provider = services.BuildServiceProvider();
     await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
     await renderer.Dispatcher.InvokeAsync(async () =>
@@ -62,6 +63,9 @@ public sealed class DirectoryDetailsPageTests
     var clientId = Guid.NewGuid();
     var applications = Substitute.For<IApplicationService>();
     var principals = Substitute.For<IServicePrincipalService>();
+    var policies = Substitute.For<IClaimsMappingPolicyService>();
+    policies.FindForServicePrincipalAsync(principalObjectId, Arg.Any<CancellationToken>())
+      .Returns(Result.Success<IReadOnlyList<ClaimsMappingPolicyListItem>, GraphOperationError>([]));
     var app = new ApplicationDetails(new(appObjectId, clientId, "Local registration", "AzureADMultipleOrgs", null, null),
       null, [], [], [], [], [], null, null);
     var principal = new ServicePrincipalDetails(new(principalObjectId, clientId, "Enterprise instance", "Application", true, null),
@@ -83,6 +87,7 @@ public sealed class DirectoryDetailsPageTests
     services.AddSingleton<ICurrentTenantContext>(context.Tenants);
     services.AddSingleton(applications);
     services.AddSingleton(principals);
+    services.AddSingleton(policies);
     await using var provider = services.BuildServiceProvider();
     await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
 
@@ -128,6 +133,7 @@ public sealed class DirectoryDetailsPageTests
     }
     else
     {
+      await policies.Received(1).FindForServicePrincipalAsync(principalObjectId, Arg.Any<CancellationToken>());
       await applications.Received(1).FindByAppIdAsync(clientId, Arg.Any<CancellationToken>());
       await applications.DidNotReceive().GetByObjectIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }

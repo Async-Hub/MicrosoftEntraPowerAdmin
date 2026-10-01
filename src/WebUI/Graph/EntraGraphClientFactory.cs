@@ -54,7 +54,7 @@ public sealed class EntraGraphClientFactory(
         return string.Empty;
 
       return await tokenAcquisition.GetAccessTokenForUserAsync(
-        [GraphScopes.UserRead, GraphScopes.ApplicationReadAll],
+        [GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll],
         authenticationScheme: OpenIdConnectDefaults.AuthenticationScheme,
         tenantId: tenantId.ToString(),
         user: user,

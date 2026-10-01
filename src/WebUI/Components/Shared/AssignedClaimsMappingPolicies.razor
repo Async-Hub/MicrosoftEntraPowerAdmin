@@ -1,0 +1,10 @@
+<MudPaper Outlined="true" Class="pa-4 mt-4">
+  <MudText Typo="Typo.h6" HtmlTag="h2">Assigned Claims Mapping Policies</MudText>
+  <MudText Class="my-2">Policies applied to this Service Principal Object ID.</MudText>
+  <DirectoryStatus Error="_state.Error" IsLoading="_state.IsLoading" />
+  <MudButton OnClick="LoadAsync" Disabled="@(_state.IsLoading || _tenantChanged)" Class="mb-3" Variant="Variant.Outlined">Refresh policies</MudButton>
+  @if (_state.Value is { } policies)
+  {
+    <ClaimsMappingPolicyTable Policies="policies" OnOpen="Open" EmptyMessage="No Claims Mapping Policies are assigned to this Service Principal." />
+  }
+</MudPaper>

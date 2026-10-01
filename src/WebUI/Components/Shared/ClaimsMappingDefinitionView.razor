@@ -1,0 +1,64 @@
+@foreach (var warning in Definition.Warnings)
+{
+  <MudAlert Severity="Severity.Warning" Class="my-2">@warning</MudAlert>
+}
+@if (Definition.Document is { } document)
+{
+  <MudText Typo="Typo.h6" HtmlTag="h3">Structured view</MudText>
+  <MudText>Version: @(document.Version?.ToString() ?? "Not available")</MudText>
+  <MudText>IncludeBasicClaimSet: @(document.IncludeBasicClaimSet?.ToString() ?? "Not available")</MudText>
+  @if (document.ClaimsSchema is { } schema)
+  {
+    <MudText Typo="Typo.subtitle1" Class="mt-3">ClaimsSchema</MudText>
+    <MudTable Items="schema" Dense="true" Breakpoint="Breakpoint.Sm">
+      <HeaderContent>
+        @if (HasSource) { <MudTh>Source</MudTh> }
+        @if (HasId) { <MudTh>ID</MudTh> }
+        @if (HasJwtClaimType) { <MudTh>JWT Claim Type</MudTh> }
+        @if (HasSamlClaimType) { <MudTh>SAML Claim Type</MudTh> }
+        @if (HasValue) { <MudTh>Value</MudTh> }
+        @if (HasTransformationId) { <MudTh>Transformation ID</MudTh> }
+        @if (!HasSchemaFields) { <MudTh>Entry</MudTh> }
+      </HeaderContent>
+      <RowTemplate>
+        @if (HasSource) { <MudTd DataLabel="Source">@context.Source</MudTd> }
+        @if (HasId) { <MudTd DataLabel="ID">@context.Id</MudTd> }
+        @if (HasJwtClaimType) { <MudTd DataLabel="JWT Claim Type" Class="directory-value">@context.JwtClaimType</MudTd> }
+        @if (HasSamlClaimType) { <MudTd DataLabel="SAML Claim Type" Class="directory-value">@context.SamlClaimType</MudTd> }
+        @if (HasValue) { <MudTd DataLabel="Value" Class="directory-value">@context.Value</MudTd> }
+        @if (HasTransformationId) { <MudTd DataLabel="Transformation ID">@context.TransformationId</MudTd> }
+        @if (!HasSchemaFields) { <MudTd>No understood fields; inspect the raw definition.</MudTd> }
+      </RowTemplate>
+      <NoRecordsContent><MudText>No ClaimsSchema entries.</MudText></NoRecordsContent>
+    </MudTable>
+  }
+  else
+  {
+    <MudText Class="mt-3">ClaimsSchema: Not available</MudText>
+  }
+  @if (document.ClaimsTransformation is { } transformations)
+  {
+    <MudText Typo="Typo.subtitle1" Class="mt-3">ClaimsTransformation</MudText>
+    @if (transformations.Count == 0)
+    {
+      <MudText>No ClaimsTransformation entries.</MudText>
+    }
+    @foreach (var transformation in transformations)
+    {
+      <MudPaper Outlined="true" Class="pa-3 my-2">
+        <MudText>ID: @(transformation.Id ?? "Not available")</MudText>
+        <MudText>Transformation Method: @(transformation.TransformationMethod ?? "Not available")</MudText>
+        <ReadOnlyValues Label="Input Claims" Values="ClaimValues(transformation.InputClaims)" />
+        <ReadOnlyValues Label="Input Parameters" Values="ParameterValues(transformation.InputParameters)" />
+        <ReadOnlyValues Label="Output Claims" Values="ClaimValues(transformation.OutputClaims)" />
+      </MudPaper>
+    }
+  }
+  else
+  {
+    <MudText Class="mt-3">ClaimsTransformation: Not available</MudText>
+  }
+}
+<MudText Typo="Typo.h6" HtmlTag="h3" Class="mt-4">Raw definition</MudText>
+<MudText Typo="Typo.caption">Original JSON, including properties outside the structured view. Invalid JSON is shown as received.</MudText>
+<pre class="policy-json" tabindex="0">@Definition.Formatted</pre>

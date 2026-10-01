@@ -1,0 +1,68 @@
+@page "/claims-mapping-policies/{ObjectId}"
+
+<PageTitle>Claims Mapping Policy - MEPA</PageTitle>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Claims Mapping Policy</MudText>
+<MudButton Href="/claims-mapping-policies" Class="mb-3">Back to Claims Mapping Policies</MudButton>
+<DirectoryStatus Error="DisplayError" IsLoading="_state.IsLoading" />
+@if (!_state.IsLoading)
+{
+  <MudButton OnClick="LoadAsync" Class="mb-3">Refresh</MudButton>
+}
+@if (_state.Value is { } details)
+{
+  <MudPaper Outlined="true" Class="pa-4 mb-4">
+    <MudText Typo="Typo.h5" HtmlTag="h2">@details.Policy.DisplayName</MudText>
+    <MudText Class="mt-2">Policy Object ID</MudText>
+    <CopyIdentifier Value="details.Policy.ObjectId" Label="Policy Object ID" />
+    <MudText Class="mt-3">IsOrganizationDefault: @(details.Policy.IsOrganizationDefault?.ToString() ?? "Not returned")</MudText>
+    @if (details.Policy.Definitions.Count == 0)
+    {
+      <MudText Class="mt-3">No policy definition was returned.</MudText>
+    }
+    @foreach (var definition in details.Policy.Definitions)
+    {
+      <MudDivider Class="my-4" />
+      <ClaimsMappingDefinitionView Definition="definition" />
+    }
+  </MudPaper>
+  <MudPaper Outlined="true" Class="pa-4">
+    <MudText Typo="Typo.h6" HtmlTag="h2">Applies to</MudText>
+    @if (details.Assignments.IsSuccess)
+    {
+      var assignments = details.Assignments.Value;
+      <MudText Class="my-3">Enterprise Applications / Service Principals</MudText>
+      <MudTable Items="assignments.ServicePrincipals" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent><MudTh>Display Name</MudTh><MudTh>Application / Client ID</MudTh><MudTh>Service Principal Object ID</MudTh><MudTh>Details</MudTh></HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Display Name">@context.DisplayName</MudTd>
+          <MudTd DataLabel="Application / Client ID"><CopyIdentifier Value="context.AppId" Label="Application / Client ID" /></MudTd>
+          <MudTd DataLabel="Service Principal Object ID"><CopyIdentifier Value="context.ObjectId" Label="Service Principal Object ID" /></MudTd>
+          <MudTd><MudButton OnClick="@(() => OpenServicePrincipal(context.ObjectId))">Open</MudButton></MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText>No Service Principals returned for this policy.</MudText></NoRecordsContent>
+      </MudTable>
+      @if (assignments.Applications.Count > 0)
+      {
+        <MudText Class="my-3">App Registrations returned by appliesTo</MudText>
+        <MudTable Items="assignments.Applications" Dense="true" Breakpoint="Breakpoint.Sm">
+          <HeaderContent><MudTh>Display Name</MudTh><MudTh>Application / Client ID</MudTh><MudTh>Application Object ID</MudTh><MudTh>Details</MudTh></HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Display Name">@context.DisplayName</MudTd>
+            <MudTd DataLabel="Application / Client ID"><CopyIdentifier Value="context.AppId" Label="Application / Client ID" /></MudTd>
+            <MudTd DataLabel="Application Object ID"><CopyIdentifier Value="context.ObjectId" Label="Application Object ID" /></MudTd>
+            <MudTd><MudButton OnClick="@(() => OpenApplication(context.ObjectId))">Open</MudButton></MudTd>
+          </RowTemplate>
+        </MudTable>
+      }
+      @foreach (var item in assignments.OtherObjects)
+      {
+        <MudText Class="mt-3">Directory object with limited or unsupported details: @(item.Type ?? "Type unavailable")</MudText>
+        <CopyIdentifier Value="item.ObjectId" Label="Directory Object ID" />
+      }
+    }
+    else
+    {
+      <MudText>Assignments could not be retrieved. Resolve the error above and refresh.</MudText>
+    }
+  </MudPaper>
+}

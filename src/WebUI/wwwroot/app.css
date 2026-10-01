@@ -1,5 +1,6 @@
 html, body { margin: 0; }
 .directory-id { font-family: monospace; overflow-wrap: anywhere; }
 .directory-value { overflow-wrap: anywhere; }
+.policy-json { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 36rem; overflow: auto; padding: 1rem; background: #f5f5f5; }
 .user-menu { display: flex; align-items: center; gap: 1rem; }
 #blazor-error-ui { display: none; position: fixed; bottom: 0; width: 100%; padding: 1rem; background: #fff3cd; color: #222; z-index: 2000; }
