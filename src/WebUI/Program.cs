@@ -21,6 +21,9 @@ builder.Services.AddOptions<OpenIdConnectOptions>(OpenIdConnectDefaults.Authenti
         TenantAuthentication.Configure(options, tenants.Value));
 builder.Services.AddScoped<IEntraGraphClientFactory, EntraGraphClientFactory>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+builder.Services.AddScoped<DirectoryReadOperation>();
+builder.Services.AddScoped<IApplicationService, ApplicationService>();
+builder.Services.AddScoped<IServicePrincipalService, ServicePrincipalService>();
 
 builder.Services.AddOptions<MicrosoftIdentityOptions>(OpenIdConnectDefaults.AuthenticationScheme)
     .Validate(options => options.TenantId == "organizations",

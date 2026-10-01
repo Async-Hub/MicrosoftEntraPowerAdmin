@@ -1,0 +1,6 @@
+<span class="directory-id">@(Value?.ToString("D") ?? "Not available")</span>
+@if (Value.HasValue)
+{
+  <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" OnClick="CopyAsync"
+                 aria-label="@($"Copy {Label}")" title="@($"Copy {Label}")" />
+}

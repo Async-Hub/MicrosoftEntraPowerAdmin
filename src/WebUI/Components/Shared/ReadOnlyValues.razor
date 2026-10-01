@@ -1,0 +1,12 @@
+<MudText Typo="Typo.subtitle1" Class="mt-3">@Label</MudText>
+@if (Values.Count == 0)
+{
+  <MudText>Not configured</MudText>
+}
+else
+{
+  @foreach (var value in Values)
+  {
+    <MudText Class="directory-value">@value</MudText>
+  }
+}

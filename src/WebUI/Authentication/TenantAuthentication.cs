@@ -86,7 +86,7 @@ public static class TenantAuthentication
     {
       await previousTicketReceived(context);
       // The tenant marker belongs to this authentication round trip, not the sign-in cookie.
-      context.Properties.Items.Remove(TenantProperty);
+      context.Properties?.Items.Remove(TenantProperty);
     };
   }
 

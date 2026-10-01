@@ -132,11 +132,17 @@ public sealed class TenantAuthenticationTests
     var properties = Properties(_tenantA);
     properties.RedirectUri = $"/admin?tenant={_tenantA}";
     var ticket = new AuthenticationTicket(new ClaimsPrincipal(), properties, _scheme.Name);
-    var context = new TicketReceivedContext(new DefaultHttpContext(), _scheme, options, ticket);
+    // RemoteAuthenticationHandler transfers the redirect before raising TicketReceived.
+    var context = new TicketReceivedContext(new DefaultHttpContext(), _scheme, options, ticket)
+    {
+      ReturnUri = properties.RedirectUri
+    };
+    properties.RedirectUri = null;
 
     await options.Events.TicketReceived(context);
 
     Assert.True(originalHandlerCalled);
+    Assert.NotNull(context.Properties);
     Assert.False(context.Properties.Items.ContainsKey(TenantAuthentication.TenantProperty));
     Assert.Equal($"/admin?tenant={_tenantA}", context.ReturnUri);
   }

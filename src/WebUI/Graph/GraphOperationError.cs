@@ -11,7 +11,9 @@ public enum GraphOperationErrorType
   TenantMismatch,
   TenantChanged,
   Throttled,
-  GraphFailure
+  GraphFailure,
+  InvalidInput,
+  NotFound
 }
 
 public sealed record GraphOperationError(

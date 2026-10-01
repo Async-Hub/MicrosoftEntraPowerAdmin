@@ -1,0 +1,57 @@
+@page "/service-principals/{ObjectId}"
+
+<PageTitle>Enterprise Application - MEPA</PageTitle>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Enterprise Application</MudText>
+<MudButton Href="/service-principals" Class="mb-3">Back to Enterprise Applications</MudButton>
+<DirectoryStatus Error="DisplayError" IsLoading="_state.IsLoading" />
+@if (!_state.IsLoading)
+{
+  <MudButton OnClick="LoadAsync" Class="mb-3">Refresh</MudButton>
+}
+@if (_state.Value is { } inspection)
+{
+  var details = inspection.Details;
+  var item = details.ServicePrincipal;
+  <MudPaper Outlined="true" Class="pa-4 mb-4">
+    <MudText Typo="Typo.h5" HtmlTag="h2">@item.DisplayName</MudText>
+    <MudText Class="mt-2">Application / Client ID</MudText>
+    <CopyIdentifier Value="item.AppId" Label="Application / Client ID" />
+    <MudText Class="mt-2">Service Principal Object ID</MudText>
+    <CopyIdentifier Value="item.ObjectId" Label="Service Principal Object ID" />
+    <MudText Class="mt-3 directory-value">Description: @(details.Description ?? "Not configured")</MudText>
+    <MudText>Service Principal Type: @(item.ServicePrincipalType ?? "Not available")</MudText>
+    <MudText>Account Enabled: @(item.AccountEnabled?.ToString() ?? "Not configured")</MudText>
+    <MudText>Verified Publisher Name: @(item.PublisherName ?? "Not available")</MudText>
+    <MudText Class="mt-2">App Owner Organization ID</MudText>
+    <CopyIdentifier Value="details.AppOwnerOrganizationId" Label="App Owner Organization ID" />
+    <MudText Class="directory-value">Homepage: @(details.Homepage ?? "Not configured")</MudText>
+    <MudText Class="directory-value">Login URL: @(details.LoginUrl ?? "Not configured")</MudText>
+    <ReadOnlyValues Label="Service Principal Names" Values="details.ServicePrincipalNames" />
+    <ReadOnlyValues Label="Tags" Values="details.Tags" />
+  </MudPaper>
+  <MudText Class="my-3">The Application / Client ID links these objects. Each object has its own tenant-specific Object ID.</MudText>
+  <MudPaper Outlined="true" Class="pa-4">
+    <MudText Typo="Typo.h6" HtmlTag="h2">App Registration — same Client ID</MudText>
+    @if (inspection.Related.IsSuccess)
+    {
+      @if (inspection.Related.Value.HasValue)
+      {
+        var linked = inspection.Related.Value.Value.Application;
+        <MudText>@linked.DisplayName</MudText>
+        <MudText Class="mt-2">Application / Client ID</MudText>
+        <CopyIdentifier Value="linked.AppId" Label="Application / Client ID" />
+        <MudText Class="mt-2">Application Object ID</MudText>
+        <CopyIdentifier Value="linked.ObjectId" Label="Application Object ID" />
+        <div><MudButton OnClick="OpenRelated" Color="Color.Primary" Class="mt-3">Open App Registration</MudButton></div>
+      }
+      else
+      {
+        <MudText>The App Registration is owned by another tenant or is not present in the current tenant.</MudText>
+      }
+    }
+    else
+    {
+      <MudText>The related object could not be checked. Resolve the error above and refresh.</MudText>
+    }
+  </MudPaper>
+}

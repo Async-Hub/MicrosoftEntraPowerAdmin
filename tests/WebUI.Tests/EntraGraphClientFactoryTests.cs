@@ -58,7 +58,7 @@ public sealed class EntraGraphClientFactoryTests
     Assert.All(calls, call =>
     {
       Assert.Same(_context.User, call.User);
-      Assert.Equal([GraphScopes.UserRead], call.Scopes);
+      Assert.Equal([GraphScopes.UserRead, GraphScopes.ApplicationReadAll], call.Scopes);
       Assert.Equal(TestContext.Current.CancellationToken, call.Cancellation);
     });
     Assert.Equal("Bearer", requestB?.Headers.Authorization?.Scheme);

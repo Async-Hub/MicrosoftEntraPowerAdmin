@@ -41,9 +41,9 @@ Authentication follows the standard [Microsoft.Identity.Web configuration](https
 
 ## Microsoft Graph and tenant consent
 
-The administration dashboard reads `id`, `displayName`, and `verifiedDomains` through `GraphServiceClient.Organization.GetAsync` with `$select`, using the public-cloud Microsoft Graph v1.0 endpoint. It verifies the returned organization ID against the selected tenant before displaying a connected state. Empty, ambiguous, or mismatched responses fail validation. No administration operations are implemented.
+The administration dashboard reads `id`, `displayName`, and `verifiedDomains` through `GraphServiceClient.Organization.GetAsync` with `$select`, using the public-cloud Microsoft Graph v1.0 endpoint. It verifies the returned organization ID against the selected tenant before displaying a connected state. Empty, ambiguous, or mismatched responses fail validation. Application browsing is read-only.
 
-Add **Microsoft Graph → Delegated permissions → User.Read** to the application registration. This is sufficient for these three properties according to the [organization API documentation](https://learn.microsoft.com/en-us/graph/api/organization-list?view=graph-rest-1.0). `Organization.Read.All` and future administration scopes are not requested. Normal sign-in retains its existing OIDC scopes; Graph consent is requested when needed.
+Add **Microsoft Graph → Delegated permissions → User.Read** and **Application.Read.All** to the MEPA application registration. `User.Read` supports the dashboard's three organization properties according to the [organization API documentation](https://learn.microsoft.com/en-us/graph/api/organization-list?view=graph-rest-1.0). **Application.Read.All requires admin consent in each administered tenant** and enables reading [applications](https://learn.microsoft.com/en-us/graph/api/application-list?view=graph-rest-1.0) and [service principals](https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list?view=graph-rest-1.0). It is the only additional Graph permission for browsing; no write or directory-wide read permissions are added. Normal sign-in retains its OIDC scopes; the existing **Authenticate tenant** flow requests the Graph permissions when interaction is needed.
 
 Register just these two Web redirect URIs on the multi-tenant application, shared by every configured tenant:
 
@@ -60,8 +60,22 @@ The built-in Identity.Web Blazor challenge helper does not accept a tenant overr
 
 The signed-in account must be permitted to access the selected directory as a member or guest. Consent is tenant-specific: selecting another configured tenant does not grant access. If that tenant disables user consent, an administrator must grant the delegated permission under its policy. Entra enforces account access, MFA, and Conditional Access. Rejected access appears separately from interaction requirements, throttling, and other Graph failures. A full challenge refreshes the shared authentication cookie, so other tabs may require a reload.
 
+## Read-only application browsing
+
+Under **Applications**, open **App Registrations** or **Enterprise Applications**. Select **Search** to browse, enter a display-name prefix, or enter a GUID to match a Client ID or the corresponding Object ID. Filtering runs on Graph; results use 25-item pages and **Next page** follows Graph's next link. Changing search text requires Search again. No tenant-wide collection is downloaded.
+
+- App Registration = **Application object**. Its **Application Object ID** is `Application.Id`.
+- Enterprise Application = **Service Principal object**. Its **Service Principal Object ID** is `ServicePrincipal.Id`.
+- **Application / Client ID** (`AppId`) is the shared relationship identifier. The two Object IDs identify different directory objects and are never interchangeable.
+
+Details show copyable IDs, the configured current tenant, read-only properties, and the related object found by Client ID. API settings preserve **True**, **False**, and **Not configured**. Service principals show the verified publisher when available; the v1.0 SDK does not expose a service-principal creation timestamp or a standalone publisher-name property. A local service principal can belong to an App Registration owned by another tenant, so no local App Registration is a normal outcome. An App Registration without a local service principal is also handled normally.
+
+Tenant changes clear results, search text, continuation state, and details immediately. Details return to the corresponding list. Pending operations are canceled, late responses are ignored (including A → B → A), and each new service operation resolves a fresh tenant-bound Graph client. Paging links are retained only on the server and rejected after any tenant change. The existing organization validation on the dashboard is preserved. No editing or Graph write operations are provided.
+
 ## Verification
 
 Offline tests cover configuration validation, initial tenant rules, circuit isolation, token tenant/user binding, tenant switching, organization mapping and identity verification, stale responses, cancellation, Graph/MSAL errors, tenant-specific challenge scopes and claims, protected administration, and antiforgery enforcement. They use isolated configuration, local authentication doubles, and the real Graph SDK with an in-memory transport, with no real credentials or Entra/Graph calls.
+
+Directory tests additionally cover model mapping, nullable API settings, display-name and GUID searches, exact Client ID lookups, paging and next-link validation, read-only requests, and service/page tenant isolation. Rendered details tests verify both relationship directions, missing related objects, and clearing IDs while returning to the list after tenant selection changes.
 
 To verify the real identity-provider round trip after configuration: sign in, select Tenant A, complete **Authenticate tenant** if prompted, and confirm its actual organization and connected status. Switch to Tenant B and confirm A's information disappears immediately and B's organization appears after its own authentication/consent. Test a tenant where your account has no access, and verify that a denied request never reports a connected state. Also check independent tab selection and sign-out. With several tenants and an unlisted sign-in tenant, confirm that the selector asks for an explicit choice.

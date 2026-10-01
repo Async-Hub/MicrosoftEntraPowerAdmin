@@ -1,0 +1,41 @@
+@page "/service-principals"
+
+<PageTitle>Enterprise Applications - MEPA</PageTitle>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Enterprise Applications</MudText>
+<DirectoryStatus Error="_state.Error" IsLoading="_state.IsLoading" />
+<MudText Class="mb-3">Search by display name prefix, Application / Client ID, or Service Principal Object ID. A blank search shows the first page.</MudText>
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+  <MudTextField T="string" @bind-Value="_search" Label="Display name or GUID" Variant="Variant.Outlined"
+                Disabled="_state.IsLoading" MaxLength="200" />
+  <MudButton OnClick="SearchAsync" Disabled="@(_state.IsLoading || !HasTenant)" Variant="Variant.Filled" Color="Color.Primary">Search</MudButton>
+</MudStack>
+@if (!_state.HasLoaded && !_state.IsLoading && HasTenant)
+{
+  <MudText role="status">Enter a search or select Search to browse.</MudText>
+}
+@if (_state.Value is { } page)
+{
+  <MudTable Items="page.Items" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+      <MudTh>Display Name</MudTh>
+      <MudTh>Application / Client ID</MudTh>
+      <MudTh>Service Principal Object ID</MudTh>
+      <MudTh>Service Principal Type</MudTh>
+      <MudTh>Enabled</MudTh>
+      <MudTh>Details</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="Display Name">@context.DisplayName</MudTd>
+      <MudTd DataLabel="Application / Client ID"><CopyIdentifier Value="context.AppId" Label="Application / Client ID" /></MudTd>
+      <MudTd DataLabel="Service Principal Object ID"><CopyIdentifier Value="context.ObjectId" Label="Service Principal Object ID" /></MudTd>
+      <MudTd DataLabel="Service Principal Type">@(context.ServicePrincipalType ?? "Not available")</MudTd>
+      <MudTd DataLabel="Enabled">@(context.AccountEnabled?.ToString() ?? "Not configured")</MudTd>
+      <MudTd><MudButton OnClick="@(() => Open(context.ObjectId))">Open</MudButton></MudTd>
+    </RowTemplate>
+    <NoRecordsContent><MudText>No matching Enterprise Applications in the current tenant.</MudText></NoRecordsContent>
+  </MudTable>
+  @if (page.NextPage is { } next)
+  {
+    <MudButton OnClick="@(() => NextAsync(next))" Class="mt-3" Variant="Variant.Outlined">Next page</MudButton>
+  }
+}

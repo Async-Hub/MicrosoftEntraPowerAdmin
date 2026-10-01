@@ -1,0 +1,39 @@
+@page "/applications"
+
+<PageTitle>App Registrations - MEPA</PageTitle>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">App Registrations</MudText>
+<DirectoryStatus Error="_state.Error" IsLoading="_state.IsLoading" />
+<MudText Class="mb-3">Search by display name prefix, Application / Client ID, or Application Object ID. A blank search shows the first page.</MudText>
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+  <MudTextField T="string" @bind-Value="_search" Label="Display name or GUID" Variant="Variant.Outlined"
+                Disabled="_state.IsLoading" MaxLength="200" />
+  <MudButton OnClick="SearchAsync" Disabled="@(_state.IsLoading || !HasTenant)" Variant="Variant.Filled" Color="Color.Primary">Search</MudButton>
+</MudStack>
+@if (!_state.HasLoaded && !_state.IsLoading && HasTenant)
+{
+  <MudText role="status">Enter a search or select Search to browse.</MudText>
+}
+@if (_state.Value is { } page)
+{
+  <MudTable Items="page.Items" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+      <MudTh>Display Name</MudTh>
+      <MudTh>Application / Client ID</MudTh>
+      <MudTh>Application Object ID</MudTh>
+      <MudTh>Sign-in Audience</MudTh>
+      <MudTh>Details</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="Display Name">@context.DisplayName</MudTd>
+      <MudTd DataLabel="Application / Client ID"><CopyIdentifier Value="context.AppId" Label="Application / Client ID" /></MudTd>
+      <MudTd DataLabel="Application Object ID"><CopyIdentifier Value="context.ObjectId" Label="Application Object ID" /></MudTd>
+      <MudTd DataLabel="Sign-in Audience">@(context.SignInAudience ?? "Not configured")</MudTd>
+      <MudTd><MudButton OnClick="@(() => Open(context.ObjectId))">Open</MudButton></MudTd>
+    </RowTemplate>
+    <NoRecordsContent><MudText>No matching App Registrations in the current tenant.</MudText></NoRecordsContent>
+  </MudTable>
+  @if (page.NextPage is { } next)
+  {
+    <MudButton OnClick="@(() => NextAsync(next))" Class="mt-3" Variant="Variant.Outlined">Next page</MudButton>
+  }
+}

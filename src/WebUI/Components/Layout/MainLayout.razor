@@ -15,6 +15,13 @@
         <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
             <AuthorizeView>
                 <TenantSelector />
+                <MudNavMenu Class="mb-4">
+                    <MudNavLink Href="admin" Match="NavLinkMatch.All">Administration</MudNavLink>
+                    <MudNavGroup Title="Applications" Expanded="true" Icon="@Icons.Material.Filled.Apps">
+                        <MudNavLink Href="applications" Match="NavLinkMatch.Prefix">App Registrations</MudNavLink>
+                        <MudNavLink Href="service-principals" Match="NavLinkMatch.Prefix">Enterprise Applications</MudNavLink>
+                    </MudNavGroup>
+                </MudNavMenu>
             </AuthorizeView>
             @Body
         </MudContainer>

@@ -1,0 +1,60 @@
+@page "/applications/{ObjectId}"
+
+<PageTitle>App Registration - MEPA</PageTitle>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">App Registration</MudText>
+<MudButton Href="/applications" Class="mb-3">Back to App Registrations</MudButton>
+<DirectoryStatus Error="DisplayError" IsLoading="_state.IsLoading" />
+@if (!_state.IsLoading)
+{
+  <MudButton OnClick="LoadAsync" Class="mb-3">Refresh</MudButton>
+}
+@if (_state.Value is { } inspection)
+{
+  var details = inspection.Details;
+  var item = details.Application;
+  <MudPaper Outlined="true" Class="pa-4 mb-4">
+    <MudText Typo="Typo.h5" HtmlTag="h2">@item.DisplayName</MudText>
+    <MudText Class="mt-2">Application / Client ID</MudText>
+    <CopyIdentifier Value="item.AppId" Label="Application / Client ID" />
+    <MudText Class="mt-2">Application Object ID</MudText>
+    <CopyIdentifier Value="item.ObjectId" Label="Application Object ID" />
+    <MudText Class="mt-3 directory-value">Description: @(details.Description ?? "Not configured")</MudText>
+    <MudText>Sign-in Audience: @(item.SignInAudience ?? "Not configured")</MudText>
+    <MudText>Created: @(item.CreatedDateTime?.ToString("u") ?? "Not available")</MudText>
+    <MudText>Publisher Domain: @(item.PublisherDomain ?? "Not configured")</MudText>
+    <MudText Typo="Typo.h6" HtmlTag="h2" Class="mt-4">API</MudText>
+    <MudText>api.acceptMappedClaims: @(details.AcceptMappedClaims?.ToString() ?? "Not configured")</MudText>
+    <MudText>api.requestedAccessTokenVersion: @(details.RequestedAccessTokenVersion?.ToString() ?? "Not configured")</MudText>
+    <MudText Typo="Typo.h6" HtmlTag="h2" Class="mt-4">Authentication and Identifiers</MudText>
+    <ReadOnlyValues Label="Web redirect URIs" Values="details.WebRedirectUris" />
+    <ReadOnlyValues Label="SPA redirect URIs" Values="details.SpaRedirectUris" />
+    <ReadOnlyValues Label="Public client redirect URIs" Values="details.PublicClientRedirectUris" />
+    <ReadOnlyValues Label="Identifier URIs" Values="details.IdentifierUris" />
+    <ReadOnlyValues Label="Tags" Values="details.Tags" />
+  </MudPaper>
+  <MudText Class="my-3">The Application / Client ID links these objects. Each object has its own tenant-specific Object ID.</MudText>
+  <MudPaper Outlined="true" Class="pa-4">
+    <MudText Typo="Typo.h6" HtmlTag="h2">Enterprise Application — same Client ID</MudText>
+    @if (inspection.Related.IsSuccess)
+    {
+      @if (inspection.Related.Value.HasValue)
+      {
+        var linked = inspection.Related.Value.Value.ServicePrincipal;
+        <MudText>@linked.DisplayName</MudText>
+        <MudText Class="mt-2">Application / Client ID</MudText>
+        <CopyIdentifier Value="linked.AppId" Label="Application / Client ID" />
+        <MudText Class="mt-2">Service Principal Object ID</MudText>
+        <CopyIdentifier Value="linked.ObjectId" Label="Service Principal Object ID" />
+        <div><MudButton OnClick="OpenRelated" Color="Color.Primary" Class="mt-3">Open Enterprise Application</MudButton></div>
+      }
+      else
+      {
+        <MudText>No Enterprise Application / Service Principal exists for this application in the current tenant.</MudText>
+      }
+    }
+    else
+    {
+      <MudText>The related object could not be checked. Resolve the error above and refresh.</MudText>
+    }
+  </MudPaper>
+}

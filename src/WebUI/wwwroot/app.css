@@ -1,3 +1,5 @@
 html, body { margin: 0; }
+.directory-id { font-family: monospace; overflow-wrap: anywhere; }
+.directory-value { overflow-wrap: anywhere; }
 .user-menu { display: flex; align-items: center; gap: 1rem; }
 #blazor-error-ui { display: none; position: fixed; bottom: 0; width: 100%; padding: 1rem; background: #fff3cd; color: #222; z-index: 2000; }

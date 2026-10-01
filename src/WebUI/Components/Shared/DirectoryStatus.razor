@@ -1,0 +1,27 @@
+<MudPaper Class="pa-4 mb-4" Outlined="true">
+  <MudText Typo="Typo.h6">Current Tenant: @TenantName</MudText>
+  @if (TenantId is { } tenantId)
+  {
+    <MudText Typo="Typo.caption">@tenantId</MudText>
+  }
+  else
+  {
+    <MudAlert Severity="Severity.Info">Select a tenant to continue.</MudAlert>
+  }
+</MudPaper>
+@if (IsLoading)
+{
+  <MudProgressLinear Indeterminate="true" Color="Color.Primary" aria-label="Loading directory objects" />
+}
+@if (Error is { } error)
+{
+  <MudAlert Severity="Severity.Error" Class="my-3">@error.Message</MudAlert>
+  @if (NeedsAuthentication && TenantId is { } challengeTenant)
+  {
+    <form action="account/connect-tenant" method="post" data-enhance="false">
+      <AntiforgeryToken />
+      <input type="hidden" name="tenantId" value="@challengeTenant" />
+      <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Authenticate tenant</MudButton>
+    </form>
+  }
+}
