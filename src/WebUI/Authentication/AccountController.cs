@@ -31,7 +31,7 @@ public sealed class AccountController(
       // Reacquire at this HTTP boundary so claims requirements come from Entra,
       // not browser input or circuit state. No token leaves authentication code.
       _ = await tokenAcquisition.GetAccessTokenForUserAsync(
-          [GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll, GraphScopes.PolicyReadWriteApplicationConfiguration], authenticationScheme: OpenIdConnectDefaults.AuthenticationScheme,
+          [GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll, GraphScopes.PolicyReadWriteApplicationConfiguration, GraphScopes.ApplicationReadWriteAll], authenticationScheme: OpenIdConnectDefaults.AuthenticationScheme,
           tenantId: tenantId.ToString(), user: User,
           tokenAcquisitionOptions: new TokenAcquisitionOptions
           {
@@ -56,7 +56,7 @@ public sealed class AccountController(
     var properties = new OpenIdConnectChallengeProperties
     {
       RedirectUri = Url.Content($"~/admin?tenant={tenantId:D}"),
-      Scope = ["openid", "profile", "offline_access", GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll, GraphScopes.PolicyReadWriteApplicationConfiguration]
+      Scope = ["openid", "profile", "offline_access", GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll, GraphScopes.PolicyReadWriteApplicationConfiguration, GraphScopes.ApplicationReadWriteAll]
     };
     properties.SetParameter("login_hint", User.GetLoginHint());
     properties.Items[TenantAuthentication.TenantProperty] = tenantId.ToString();

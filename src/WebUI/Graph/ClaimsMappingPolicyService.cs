@@ -9,7 +9,7 @@ using GraphPolicy = Microsoft.Graph.Models.ClaimsMappingPolicy;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 
-public sealed class ClaimsMappingPolicyService(DirectoryReadOperation operation, ICurrentTenantContext tenants,
+public sealed partial class ClaimsMappingPolicyService(DirectoryReadOperation operation, ICurrentTenantContext tenants,
   IEntraGraphClientFactory clients, ILogger<ClaimsMappingPolicyService> logger) : IClaimsMappingPolicyService
 {
   private const string Collection = "policies/claimsMappingPolicies";

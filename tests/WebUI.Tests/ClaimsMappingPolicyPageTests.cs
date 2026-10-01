@@ -133,18 +133,18 @@ public sealed class ClaimsMappingPolicyPageTests
     await using var harness = new Harness();
     var principalId = Guid.NewGuid();
     var policyId = Guid.NewGuid();
-    harness.Service.FindForServicePrincipalAsync(principalId, Arg.Any<CancellationToken>()).Returns(
+    harness.Service.GetAssignedPoliciesAsync(Arg.Any<ClaimsMappingPolicyAssignmentContext>(), principalId, Arg.Any<CancellationToken>()).Returns(
       Result.Success<IReadOnlyList<ClaimsMappingPolicyListItem>, GraphOperationError>([new(policyId, "Assigned policy", null, [])]));
     await harness.Renderer.Dispatcher.InvokeAsync(async () =>
     {
-      var root = await harness.Renderer.RenderComponentAsync<AssignedPolicies>(Parameters("ServicePrincipalObjectId", principalId));
+      var root = await harness.Renderer.RenderComponentAsync<AssignedPolicies>(Parameters("ServicePrincipal", new ServicePrincipalListItem(principalId, Guid.NewGuid(), "Enterprise", null, null, null)));
       Assert.Contains("Assigned policy", root.ToHtmlString());
       Assert.Contains(policyId.ToString(), root.ToHtmlString());
       harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
       Assert.DoesNotContain("Assigned policy", root.ToHtmlString());
       Assert.DoesNotContain(policyId.ToString(), root.ToHtmlString());
     });
-    await harness.Service.Received(1).FindForServicePrincipalAsync(principalId, Arg.Any<CancellationToken>());
+    await harness.Service.Received(1).GetAssignedPoliciesAsync(Arg.Any<ClaimsMappingPolicyAssignmentContext>(), principalId, Arg.Any<CancellationToken>());
   }
 
   [Fact]
@@ -199,6 +199,7 @@ public sealed class ClaimsMappingPolicyPageTests
     public Harness()
     {
       Context.Tenants.SelectTenant(Context.TenantA);
+      Service.BeginAssignment().Returns(Result.Success<ClaimsMappingPolicyAssignmentContext, GraphOperationError>(new(Context.TenantA, Guid.NewGuid())));
       var services = new ServiceCollection();
       services.AddLogging();
       services.AddMudServices();

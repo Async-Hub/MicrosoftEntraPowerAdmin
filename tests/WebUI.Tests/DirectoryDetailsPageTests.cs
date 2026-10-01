@@ -64,7 +64,8 @@ public sealed class DirectoryDetailsPageTests
     var applications = Substitute.For<IApplicationService>();
     var principals = Substitute.For<IServicePrincipalService>();
     var policies = Substitute.For<IClaimsMappingPolicyService>();
-    policies.FindForServicePrincipalAsync(principalObjectId, Arg.Any<CancellationToken>())
+    policies.BeginAssignment().Returns(Result.Success<ClaimsMappingPolicyAssignmentContext, GraphOperationError>(new(context.TenantA, Guid.NewGuid())));
+    policies.GetAssignedPoliciesAsync(Arg.Any<ClaimsMappingPolicyAssignmentContext>(), principalObjectId, Arg.Any<CancellationToken>())
       .Returns(Result.Success<IReadOnlyList<ClaimsMappingPolicyListItem>, GraphOperationError>([]));
     var app = new ApplicationDetails(new(appObjectId, clientId, "Local registration", "AzureADMultipleOrgs", null, null),
       null, [], [], [], [], [], null, null);
@@ -133,7 +134,7 @@ public sealed class DirectoryDetailsPageTests
     }
     else
     {
-      await policies.Received(1).FindForServicePrincipalAsync(principalObjectId, Arg.Any<CancellationToken>());
+      await policies.Received(1).GetAssignedPoliciesAsync(Arg.Any<ClaimsMappingPolicyAssignmentContext>(), principalObjectId, Arg.Any<CancellationToken>());
       await applications.Received(1).FindByAppIdAsync(clientId, Arg.Any<CancellationToken>());
       await applications.DidNotReceive().GetByObjectIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }

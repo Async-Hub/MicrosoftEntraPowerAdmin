@@ -29,7 +29,7 @@
     <ReadOnlyValues Label="Service Principal Names" Values="details.ServicePrincipalNames" />
     <ReadOnlyValues Label="Tags" Values="details.Tags" />
   </MudPaper>
-  <AssignedClaimsMappingPolicies @key="item.ObjectId" ServicePrincipalObjectId="item.ObjectId" />
+  <AssignedClaimsMappingPolicies @key="item.ObjectId" ServicePrincipal="item" />
   <MudText Class="my-3">The Application / Client ID links these objects. Each object has its own tenant-specific Object ID.</MudText>
   <MudPaper Outlined="true" Class="pa-4">
     <MudText Typo="Typo.h6" HtmlTag="h2">App Registration — same Client ID</MudText>

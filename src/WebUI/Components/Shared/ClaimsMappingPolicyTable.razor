@@ -13,7 +13,13 @@
     <MudTd DataLabel="Has Definition">@context.HasDefinition</MudTd>
     <MudTd DataLabel="Parsed ClaimsSchema Entries">@(context.ClaimsSchemaCount?.ToString() ?? "Not available")</MudTd>
     <MudTd DataLabel="Parsed ClaimsTransformation Entries">@(context.ClaimsTransformationCount?.ToString() ?? "Not available")</MudTd>
-    <MudTd><MudButton OnClick="@(() => OnOpen.InvokeAsync(context.ObjectId))">Open</MudButton></MudTd>
+    <MudTd>
+      <MudButton OnClick="@(() => OnOpen.InvokeAsync(context.ObjectId))" Disabled="ActionsDisabled">Open</MudButton>
+      @if (OnUnassign.HasDelegate)
+      {
+        <MudButton OnClick="@(() => OnUnassign.InvokeAsync(context))" Disabled="ActionsDisabled">Unassign</MudButton>
+      }
+    </MudTd>
   </RowTemplate>
   <NoRecordsContent><MudText>@EmptyMessage</MudText></NoRecordsContent>
 </MudTable>

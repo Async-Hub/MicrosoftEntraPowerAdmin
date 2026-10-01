@@ -2,9 +2,20 @@
   <MudText Typo="Typo.h6" HtmlTag="h2">Assigned Claims Mapping Policies</MudText>
   <MudText Class="my-2">Policies applied to this Service Principal Object ID.</MudText>
   <DirectoryStatus Error="_state.Error" IsLoading="_state.IsLoading" />
-  <MudButton OnClick="LoadAsync" Disabled="@(_state.IsLoading || _tenantChanged)" Class="mb-3" Variant="Variant.Outlined">Refresh policies</MudButton>
+  @if (_operationError is not null)
+  {
+    <DirectoryStatus Error="_operationError" />
+  }
+  <MudButton OnClick="LoadAsync" Disabled="@(_state.IsLoading || _tenantChanged || _confirmation is not null)" Class="mb-3" Variant="Variant.Outlined">Refresh policies</MudButton>
+  <MudButton OnClick="Assign" Disabled="@(_state.IsLoading || _tenantChanged || _state.Value is null || _confirmation is not null)" Class="mb-3" Color="Color.Primary">Assign policy</MudButton>
   @if (_state.Value is { } policies)
   {
-    <ClaimsMappingPolicyTable Policies="policies" OnOpen="Open" EmptyMessage="No Claims Mapping Policies are assigned to this Service Principal." />
+    <ClaimsMappingPolicyTable Policies="policies" OnOpen="Open" OnUnassign="Unassign" ActionsDisabled="@(_confirmation is not null)"
+      EmptyMessage="No Claims Mapping Policies are assigned to this Service Principal." />
+  }
+  @if (_confirmation is { } confirmation)
+  {
+    <ChangeClaimsMappingPolicyAssignment @key="confirmation" Context="confirmation" Principal="ServicePrincipal"
+      Policy="_unassignPolicy" IsUnassignment="@(_unassignPolicy is not null)" OnCancel="Cancel" OnFinished="FinishedAsync" />
   }
 </MudPaper>

@@ -4,9 +4,13 @@
 <MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Claims Mapping Policy</MudText>
 <MudButton Href="/claims-mapping-policies" Class="mb-3">Back to Claims Mapping Policies</MudButton>
 <DirectoryStatus Error="DisplayError" IsLoading="_state.IsLoading" />
+@if (_operationError is not null)
+{
+  <DirectoryStatus Error="_operationError" />
+}
 @if (!_state.IsLoading)
 {
-  <MudButton OnClick="LoadAsync" Class="mb-3">Refresh</MudButton>
+  <MudButton OnClick="LoadAsync" Disabled="@(_confirmation is not null)" Class="mb-3">Refresh</MudButton>
 }
 @if (_state.Value is { } details)
 {
@@ -27,6 +31,7 @@
   </MudPaper>
   <MudPaper Outlined="true" Class="pa-4">
     <MudText Typo="Typo.h6" HtmlTag="h2">Applies to</MudText>
+    <MudButton OnClick="Assign" Disabled="@(_confirmation is not null || details.Assignments.IsFailure)" Color="Color.Primary" Class="my-3">Assign to Enterprise Application</MudButton>
     @if (details.Assignments.IsSuccess)
     {
       var assignments = details.Assignments.Value;
@@ -37,7 +42,10 @@
           <MudTd DataLabel="Display Name">@context.DisplayName</MudTd>
           <MudTd DataLabel="Application / Client ID"><CopyIdentifier Value="context.AppId" Label="Application / Client ID" /></MudTd>
           <MudTd DataLabel="Service Principal Object ID"><CopyIdentifier Value="context.ObjectId" Label="Service Principal Object ID" /></MudTd>
-          <MudTd><MudButton OnClick="@(() => OpenServicePrincipal(context.ObjectId))">Open</MudButton></MudTd>
+          <MudTd>
+            <MudButton OnClick="@(() => OpenServicePrincipal(context.ObjectId))" Disabled="@(_confirmation is not null)">Open</MudButton>
+            <MudButton OnClick="@(() => Unassign(context))" Disabled="@(_confirmation is not null)">Unassign</MudButton>
+          </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText>No Service Principals returned for this policy.</MudText></NoRecordsContent>
       </MudTable>
@@ -65,4 +73,10 @@
       <MudText>Assignments could not be retrieved. Resolve the error above and refresh.</MudText>
     }
   </MudPaper>
+}
+@if (_confirmation is { } confirmation)
+{
+  <ChangeClaimsMappingPolicyAssignment @key="confirmation" Context="confirmation" Policy="_confirmationPolicy"
+    Principal="_unassignPrincipal" IsUnassignment="@(_unassignPrincipal is not null)" AssignedPrincipalIds="_assignedPrincipalIds"
+    OnCancel="Cancel" OnFinished="FinishedAsync" />
 }
