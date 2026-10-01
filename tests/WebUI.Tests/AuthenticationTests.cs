@@ -47,7 +47,7 @@ public sealed class AuthenticationTests
     Assert.Contains(GraphScopes.UserRead, query["scope"].ToString());
     Assert.Contains(GraphScopes.ApplicationReadAll, query["scope"].ToString());
     Assert.Contains(GraphScopes.PolicyReadAll, query["scope"].ToString());
-    Assert.DoesNotContain("Policy.ReadWrite", query["scope"].ToString());
+    Assert.Contains(GraphScopes.PolicyReadWriteApplicationConfiguration, query["scope"].ToString());
     Assert.DoesNotContain("Directory.Read", query["scope"].ToString());
     Assert.DoesNotContain("Application.ReadWrite", query["scope"].ToString());
     Assert.Equal(TestApplication.RequiredClaims, query["claims"].ToString());
@@ -63,7 +63,7 @@ public sealed class AuthenticationTests
     Assert.Single(schemes, registered => registered.HandlerType == typeof(OpenIdConnectHandler));
 
     await application.Tokens.Received().GetAccessTokenForUserAsync(
-        Arg.Is<IEnumerable<string>>(scopes => scopes.SequenceEqual(new[] { GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll })),
+        Arg.Is<IEnumerable<string>>(scopes => scopes.SequenceEqual(new[] { GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll, GraphScopes.PolicyReadWriteApplicationConfiguration })),
         OpenIdConnectDefaults.AuthenticationScheme, tenantId, null,
         Arg.Is<ClaimsPrincipal>(user => user.Identity != null && user.Identity.IsAuthenticated),
         Arg.Is<TokenAcquisitionOptions>(options => options.ForceRefresh));

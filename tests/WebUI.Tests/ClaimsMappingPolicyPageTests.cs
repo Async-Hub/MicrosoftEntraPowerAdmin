@@ -11,6 +11,7 @@ using NSubstitute;
 using PolicyPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Pages.Admin.ClaimsMappingPolicyDetails;
 using PoliciesPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Pages.Admin.ClaimsMappingPolicies;
 using AssignedPolicies = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Shared.AssignedClaimsMappingPolicies;
+using CreatePolicy = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Shared.CreateClaimsMappingPolicy;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tests;
 
@@ -115,6 +116,7 @@ public sealed class ClaimsMappingPolicyPageTests
       Assert.Contains("Tenant A policy", html);
       Assert.Contains(policyId.ToString(), html);
       Assert.Contains("Parsed ClaimsSchema Entries", html);
+      Assert.Contains("Create policy", html);
       harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
       html = root.ToHtmlString();
       Assert.Contains("Tenant B", html);
@@ -143,6 +145,44 @@ public sealed class ClaimsMappingPolicyPageTests
       Assert.DoesNotContain(policyId.ToString(), root.ToHtmlString());
     });
     await harness.Service.Received(1).FindForServicePrincipalAsync(principalId, Arg.Any<CancellationToken>());
+  }
+
+  [Fact]
+  public async Task Create_form_shows_structured_controls_and_requires_review_without_calling_Graph()
+  {
+    await using var harness = new Harness();
+    await harness.Renderer.Dispatcher.InvokeAsync(async () =>
+    {
+      var root = await harness.Renderer.RenderComponentAsync<CreatePolicy>(Parameters("Context",
+        new ClaimsMappingPolicyCreationContext(harness.Context.TenantA, Guid.NewGuid())));
+      var html = root.ToHtmlString();
+      Assert.Contains("Display Name", html);
+      Assert.Contains("Include Basic Claim Set", html);
+      Assert.Contains("Version is fixed at 1", html);
+      Assert.Contains("Claims Schema (0 / 50)", html);
+      Assert.Contains("Add claim", html);
+      Assert.Contains("Review", html);
+      Assert.Contains("Cancel", html);
+      Assert.Contains("disabled", html);
+      Assert.DoesNotContain("textarea", html);
+    });
+    Assert.Empty(harness.Service.ReceivedCalls());
+  }
+
+  [Fact]
+  public async Task Open_create_form_is_invalidated_by_tenant_change_without_creating_a_policy()
+  {
+    await using var harness = new Harness();
+    await harness.Renderer.Dispatcher.InvokeAsync(async () =>
+    {
+      var root = await harness.Renderer.RenderComponentAsync<CreatePolicy>(Parameters("Context",
+        new ClaimsMappingPolicyCreationContext(harness.Context.TenantA, Guid.NewGuid())));
+      harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
+      Assert.Contains("The tenant changed. Cancel and start a new policy draft", root.ToHtmlString());
+      harness.Context.Tenants.SelectTenant(harness.Context.TenantA);
+      Assert.Contains("The tenant changed. Cancel and start a new policy draft", root.ToHtmlString());
+    });
+    Assert.Empty(harness.Service.ReceivedCalls());
   }
 
   private static ParameterView Parameters(string name, object value) =>

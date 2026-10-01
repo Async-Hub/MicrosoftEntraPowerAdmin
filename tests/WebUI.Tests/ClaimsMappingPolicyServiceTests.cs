@@ -260,6 +260,179 @@ public sealed class ClaimsMappingPolicyServiceTests
     Assert.Empty(harness.Requests);
   }
 
+  [Fact]
+  public async Task Creation_posts_one_definition_string_and_uses_Graph_response_without_assigning()
+  {
+    string? submitted = null;
+    var returnedDefinition = "{\"ClaimsMappingPolicy\":{\"Version\":1,\"IncludeBasicClaimSet\":\"false\",\"ClaimsSchema\":[]}}";
+    using var harness = new Harness(async (request, token) =>
+    {
+      Assert.Equal(HttpMethod.Post, request.Method);
+      Assert.Equal(Collection, request.RequestUri!.AbsolutePath);
+      submitted = await request.Content!.ReadAsStringAsync(token);
+      return Json(Policy(PolicyId, "Name returned by Graph", [returnedDefinition]), HttpStatusCode.Created);
+    }, allowCreate: true);
+    var context = harness.Service.BeginCreate();
+    Assert.True(context.IsSuccess);
+    Assert.Equal(harness.Context.TenantA, context.Value.TenantId);
+    var result = await harness.Service.CreateAsync(context.Value, CreateRequest(), TestContext.Current.CancellationToken);
+    Assert.True(result.IsSuccess);
+    Assert.Equal(PolicyId, result.Value.ObjectId);
+    Assert.Equal("Name returned by Graph", result.Value.DisplayName);
+    Assert.Equal(returnedDefinition, Assert.Single(result.Value.Definitions).Raw);
+    Assert.Single(harness.Requests);
+    using var outer = JsonDocument.Parse(submitted!);
+    Assert.Equal("Policy", outer.RootElement.GetProperty("displayName").GetString());
+    var definition = Assert.Single(outer.RootElement.GetProperty("definition").EnumerateArray());
+    Assert.Equal(JsonValueKind.String, definition.ValueKind);
+    using var inner = JsonDocument.Parse(definition.GetString()!);
+    Assert.Equal("department", inner.RootElement.GetProperty("ClaimsMappingPolicy").GetProperty("ClaimsSchema")[0].GetProperty("ID").GetString());
+    Assert.False(outer.RootElement.GetProperty("isOrganizationDefault").GetBoolean());
+    Assert.False(outer.RootElement.TryGetProperty("appliesTo", out _));
+  }
+
+  [Theory]
+  [InlineData(400, GraphOperationErrorType.InvalidInput)]
+  [InlineData(401, GraphOperationErrorType.Unauthorized)]
+  [InlineData(403, GraphOperationErrorType.Forbidden)]
+  [InlineData(409, GraphOperationErrorType.InvalidInput)]
+  [InlineData(429, GraphOperationErrorType.Throttled)]
+  [InlineData(503, GraphOperationErrorType.GraphFailure)]
+  public async Task Creation_errors_are_safe_and_preserve_diagnostic_metadata(int status, GraphOperationErrorType type)
+  {
+    using var harness = new Harness(_ => Json(new
+    {
+      error = new { code = "test", message = "sensitive message", innerError = new Dictionary<string, string> { ["request-id"] = "create-request" } }
+    }, (HttpStatusCode)status), allowCreate: true);
+    var result = await harness.Service.CreateAsync(harness.Service.BeginCreate().Value, CreateRequest(), TestContext.Current.CancellationToken);
+    Assert.True(result.IsFailure);
+    Assert.Equal(type, result.Error.Type);
+    Assert.Equal(status, result.Error.HttpStatus);
+    Assert.Equal("test", result.Error.Code);
+    Assert.Equal("create-request", result.Error.RequestId);
+    Assert.DoesNotContain("sensitive", result.Error.Message);
+    if (status == 403)
+      Assert.Contains("Policy.ReadWrite.ApplicationConfiguration", result.Error.Message);
+  }
+
+  [Fact]
+  public async Task Creation_consent_failure_identifies_required_write_permission()
+  {
+    using var harness = new Harness(_ => throw new MsalUiRequiredException("consent_required", "sensitive message"), allowCreate: true);
+    var result = await harness.Service.CreateAsync(harness.Service.BeginCreate().Value, CreateRequest(), TestContext.Current.CancellationToken);
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.ConsentRequired, result.Error.Type);
+    Assert.Contains("Policy.ReadWrite.ApplicationConfiguration", result.Error.Message);
+    Assert.DoesNotContain("sensitive", result.Error.Message);
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task Old_draft_cannot_create_after_tenant_switch_even_if_switched_back(bool switchBack)
+  {
+    using var harness = new Harness(_ => throw new InvalidOperationException("Must not POST"));
+    var context = harness.Service.BeginCreate().Value;
+    harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
+    if (switchBack) harness.Context.Tenants.SelectTenant(harness.Context.TenantA);
+    var result = await harness.Service.CreateAsync(context, CreateRequest(), TestContext.Current.CancellationToken);
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.TenantChanged, result.Error.Type);
+    Assert.Empty(harness.Requests);
+    Assert.Equal(0, harness.ClientCount);
+  }
+
+  [Fact]
+  public async Task Tenant_switch_during_client_acquisition_prevents_POST()
+  {
+    using var harness = new Harness(_ => throw new InvalidOperationException("Must not POST"));
+    var pending = new TaskCompletionSource();
+    harness.WaitForClient = () => pending.Task;
+    var task = harness.Service.CreateAsync(harness.Service.BeginCreate().Value, CreateRequest(), TestContext.Current.CancellationToken);
+    harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
+    pending.SetResult();
+    var result = await task;
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.TenantChanged, result.Error.Type);
+    Assert.Empty(harness.Requests);
+  }
+
+  [Fact]
+  public async Task Late_creation_response_does_not_leak_into_new_tenant()
+  {
+    var pending = new TaskCompletionSource<HttpResponseMessage>();
+    using var harness = new Harness((_, _) => pending.Task, allowCreate: true);
+    var task = harness.Service.CreateAsync(harness.Service.BeginCreate().Value, CreateRequest(), TestContext.Current.CancellationToken);
+    Assert.Single(harness.Requests);
+    harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
+    harness.Context.Tenants.SelectTenant(harness.Context.TenantA);
+    pending.SetResult(Json(Policy(PolicyId, "Old tenant", []), HttpStatusCode.Created));
+    var result = await task;
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.TenantChanged, result.Error.Type);
+    Assert.Single(harness.Requests);
+  }
+
+  [Fact]
+  public async Task Invalid_draft_is_rejected_before_client_acquisition()
+  {
+    using var harness = new Harness(_ => throw new InvalidOperationException("Must not POST"));
+    var result = await harness.Service.CreateAsync(harness.Service.BeginCreate().Value,
+      CreateRequest() with { DisplayName = " " }, TestContext.Current.CancellationToken);
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.InvalidInput, result.Error.Type);
+    Assert.Contains("Display Name", result.Error.Message);
+    Assert.Equal(0, harness.ClientCount);
+  }
+
+  [Fact]
+  public void Creation_requires_a_selected_tenant()
+  {
+    using var harness = new Harness(_ => throw new InvalidOperationException("Must not POST"), selectTenant: false);
+    var result = harness.Service.BeginCreate();
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.TenantNotSelected, result.Error.Type);
+    Assert.Equal(0, harness.ClientCount);
+  }
+
+  [Fact]
+  public async Task Missing_creation_response_tells_user_to_check_list_before_retrying()
+  {
+    using var harness = new Harness(_ => new HttpResponseMessage(HttpStatusCode.NoContent), allowCreate: true);
+    var result = await harness.Service.CreateAsync(harness.Service.BeginCreate().Value, CreateRequest(), TestContext.Current.CancellationToken);
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.GraphFailure, result.Error.Type);
+    Assert.Contains("Refresh the list", result.Error.Message);
+  }
+
+  [Fact]
+  public async Task Creation_network_failure_is_a_safe_result()
+  {
+    using var harness = new Harness(_ => throw new HttpRequestException("sensitive address"), allowCreate: true);
+    var result = await harness.Service.CreateAsync(harness.Service.BeginCreate().Value, CreateRequest(), TestContext.Current.CancellationToken);
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.GraphFailure, result.Error.Type);
+    Assert.Contains("refresh the list", result.Error.Message);
+    Assert.DoesNotContain("sensitive", result.Error.Message);
+  }
+
+  [Fact]
+  public async Task Creation_propagates_caller_cancellation_to_Graph()
+  {
+    using var cancellation = new CancellationTokenSource();
+    using var harness = new Harness(async (_, token) =>
+    {
+      cancellation.Cancel();
+      await Task.Delay(Timeout.Infinite, token);
+      throw new InvalidOperationException("Unreachable");
+    }, allowCreate: true);
+    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harness.Service.CreateAsync(
+      harness.Service.BeginCreate().Value, CreateRequest(), cancellation.Token));
+  }
+
+  private static CreateClaimsMappingPolicyRequest CreateRequest() => new("Policy", true,
+    [new(ClaimValueMode.DirectoryAttribute, "user", "department", "department", null, null)]);
+
   private static Dictionary<string, object> Policy(Guid id, string name, string[] definitions) => new()
   {
     ["id"] = id, ["displayName"] = name, ["definition"] = definitions, ["isOrganizationDefault"] = false
@@ -286,27 +459,31 @@ public sealed class ClaimsMappingPolicyServiceTests
     public List<HttpRequestMessage> Requests { get; } = [];
     public ClaimsMappingPolicyService Service { get; }
     public int ClientCount { get; private set; }
+    public Func<Task>? WaitForClient { get; set; }
+    private readonly bool _allowCreate;
 
-    public Harness(Func<HttpRequestMessage, HttpResponseMessage> send, bool selectTenant = true)
-      : this((request, _) => Task.FromResult(send(request)), selectTenant) { }
-    public Harness(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send, bool selectTenant = true)
+    public Harness(Func<HttpRequestMessage, HttpResponseMessage> send, bool selectTenant = true, bool allowCreate = false)
+      : this((request, _) => Task.FromResult(send(request)), selectTenant, allowCreate) { }
+    public Harness(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send, bool selectTenant = true, bool allowCreate = false)
     {
       _send = send;
+      _allowCreate = allowCreate;
       if (selectTenant) Context.Tenants.SelectTenant(Context.TenantA);
       _operation = new(Context.Tenants, this, NullLogger<DirectoryReadOperation>.Instance);
-      Service = new(_operation);
+      Service = new(_operation, Context.Tenants, this, NullLogger<ClaimsMappingPolicyService>.Instance);
     }
-    public Task<Result<GraphServiceClient, GraphOperationError>> CreateAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<GraphServiceClient, GraphOperationError>> CreateAsync(CancellationToken cancellationToken = default)
     {
       ClientCount++;
-      return Task.FromResult(Result.Success<GraphServiceClient, GraphOperationError>(
+      if (WaitForClient is { } wait) await wait();
+      return Result.Success<GraphServiceClient, GraphOperationError>(
         new GraphServiceClient(new HttpClient(new Transport((request, token) =>
         {
           Requests.Add(request);
-          Assert.Equal(HttpMethod.Get, request.Method);
+          Assert.Equal(_allowCreate ? HttpMethod.Post : HttpMethod.Get, request.Method);
           Assert.StartsWith(Collection, request.RequestUri!.AbsolutePath);
           return _send(request, token);
-        })), new AnonymousAuthenticationProvider())));
+        })), new AnonymousAuthenticationProvider()));
     }
     public void Dispose() => _operation.Dispose();
   }

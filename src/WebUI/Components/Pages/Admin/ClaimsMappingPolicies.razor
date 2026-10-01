@@ -4,7 +4,30 @@
 <MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">Claims Mapping Policies</MudText>
 <DirectoryStatus Error="_state.Error" IsLoading="_state.IsLoading" />
 <MudButton OnClick="LoadAsync" Disabled="@(_state.IsLoading || !HasTenant)" Class="mb-3" Variant="Variant.Outlined">Refresh</MudButton>
-@if (_state.Value is { } policies)
+<MudButton OnClick="StartCreate" Disabled="@(!HasTenant || _createContext is not null)" Class="mb-3 ml-2"
+           Variant="Variant.Filled" Color="Color.Primary">Create policy</MudButton>
+@if (_draftDiscarded)
+{
+  <MudAlert Severity="Severity.Info" Class="my-3">The tenant changed and the policy draft was discarded. Start creation again in this tenant. If creation was already submitted, check the original tenant's policy list.</MudAlert>
+}
+@if (_createError is not null)
+{
+  <DirectoryStatus Error="_createError" />
+}
+@if (_createContext is { } context)
+{
+  <CreateClaimsMappingPolicy @key="context" Context="context" OnCreated="PolicyCreatedAsync" OnCancel="CancelCreate" />
+}
+@if (_created is { } created)
+{
+  <MudAlert Severity="Severity.Success" Class="my-3">Policy “@created.DisplayName” created. No assignments were added.</MudAlert>
+  <MudButton OnClick="@(() => Open(created.ObjectId))" Class="mb-3">Open created policy details</MudButton>
+  @foreach (var definition in created.Definitions)
+  {
+    <ClaimsMappingDefinitionView Definition="definition" />
+  }
+}
+@if (DisplayPolicies is { } policies)
 {
   <ClaimsMappingPolicyTable Policies="policies" OnOpen="Open" />
 }

@@ -1,14 +1,111 @@
 using CSharpFunctionalExtensions;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
+using Microsoft.Identity.Client;
+using Microsoft.Identity.Web;
+using Microsoft.Kiota.Abstractions;
 using GraphPolicy = Microsoft.Graph.Models.ClaimsMappingPolicy;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 
-public sealed class ClaimsMappingPolicyService(DirectoryReadOperation operation) : IClaimsMappingPolicyService
+public sealed class ClaimsMappingPolicyService(DirectoryReadOperation operation, ICurrentTenantContext tenants,
+  IEntraGraphClientFactory clients, ILogger<ClaimsMappingPolicyService> logger) : IClaimsMappingPolicyService
 {
   private const string Collection = "policies/claimsMappingPolicies";
   private static readonly string[] PolicyFields = ["id", "displayName", "definition", "isOrganizationDefault"];
+
+  public Result<ClaimsMappingPolicyCreationContext, GraphOperationError> BeginCreate() => tenants.CurrentTenant.HasValue
+    ? new ClaimsMappingPolicyCreationContext(tenants.CurrentTenant.Value.TenantId, operation.SelectionId)
+    : new GraphOperationError(GraphOperationErrorType.TenantNotSelected, "Select a tenant to create a policy.");
+
+  public async Task<Result<ClaimsMappingPolicyListItem, GraphOperationError>> CreateAsync(
+    ClaimsMappingPolicyCreationContext context, CreateClaimsMappingPolicyRequest request, CancellationToken cancellationToken = default)
+  {
+    cancellationToken.ThrowIfCancellationRequested();
+    if (!IsCurrent(context))
+      return DraftTenantChanged();
+    var validated = request.ValidateAndNormalize();
+    if (validated.IsFailure)
+      return new GraphOperationError(GraphOperationErrorType.InvalidInput, validated.Error);
+    var policy = new GraphPolicy
+    {
+      DisplayName = validated.Value.DisplayName,
+      Definition = [ClaimsMappingPolicyDefinitionSerializer.Serialize(validated.Value)],
+      IsOrganizationDefault = false
+    };
+
+    try
+    {
+      var createdClient = await clients.CreateAsync(cancellationToken);
+      if (createdClient.IsFailure)
+        return !IsCurrent(context) ? DraftTenantChanged() : CreationFailure(createdClient.Error);
+      using var client = createdClient.Value;
+      if (!IsCurrent(context))
+        return DraftTenantChanged();
+      cancellationToken.ThrowIfCancellationRequested();
+      // The factory binds this client to the starting tenant. Never resolve a new client after this check.
+      var created = await client.Policies.ClaimsMappingPolicies.PostAsync(policy, cancellationToken: cancellationToken);
+      if (!IsCurrent(context))
+        return DraftTenantChanged();
+      if (created is null || !HasValidId(created))
+        return CreationFailure(new(GraphOperationErrorType.GraphFailure,
+          "Microsoft Graph did not return a valid created policy. Refresh the list before trying again."));
+      return MapPolicy(created);
+    }
+    catch (MicrosoftIdentityWebChallengeUserException exception)
+    {
+      return CreationFailure(GraphErrorMapping.From(exception.MsalUiRequiredException));
+    }
+    catch (MsalUiRequiredException exception)
+    {
+      return CreationFailure(GraphErrorMapping.From(exception));
+    }
+    catch (MsalException exception)
+    {
+      return CreationFailure(GraphErrorMapping.From(exception));
+    }
+    catch (ApiException exception)
+    {
+      var error = GraphErrorMapping.From(exception);
+      return CreationFailure(error with
+      {
+        Type = exception.ResponseStatusCode is 400 or 409 or 422 ? GraphOperationErrorType.InvalidInput : error.Type,
+        Message = exception.ResponseStatusCode switch
+        {
+          400 or 409 or 422 => "Microsoft Graph rejected the policy. Check its name, attributes, and output claim types.",
+          404 => "The claims mapping policy creation endpoint is unavailable in this tenant.",
+          _ when error.Type == GraphOperationErrorType.GraphFailure => "Microsoft Graph could not confirm policy creation. Refresh the list before trying again.",
+          _ => error.Message
+        }
+      });
+    }
+    catch (HttpRequestException)
+    {
+      return CreationFailure(new(GraphOperationErrorType.GraphFailure,
+        "Microsoft Graph could not be reached. Creation may have completed; refresh the list before trying again."));
+    }
+    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+    {
+      return CreationFailure(new(GraphOperationErrorType.GraphFailure,
+        "Policy creation timed out. Creation may have completed; refresh the list before trying again."));
+    }
+  }
+
+  private bool IsCurrent(ClaimsMappingPolicyCreationContext context) => tenants.CurrentTenant.HasValue
+    && tenants.CurrentTenant.Value.TenantId == context.TenantId && operation.SelectionId == context.SelectionId;
+
+  private static GraphOperationError DraftTenantChanged() => new(GraphOperationErrorType.TenantChanged,
+    "The tenant changed. Start a new policy draft. If creation was already submitted, check the original tenant's policy list.");
+
+  private GraphOperationError CreationFailure(GraphOperationError error)
+  {
+    if (error.Type is GraphOperationErrorType.Forbidden or GraphOperationErrorType.ConsentRequired)
+      error = error with { Message = "Policy creation requires delegated Policy.ReadWrite.ApplicationConfiguration admin consent and appropriate directory privileges in this tenant. Authenticate the tenant after consent is granted." };
+    logger.LogWarning("Claims mapping policy creation failed: {ErrorType}, HTTP {Status}, code {Code}, request {RequestId}",
+      error.Type, error.HttpStatus, error.Code, error.RequestId);
+    return error;
+  }
 
   public Task<Result<IReadOnlyList<ClaimsMappingPolicyListItem>, GraphOperationError>> ListAsync(
     CancellationToken cancellationToken = default) =>

@@ -1,0 +1,59 @@
+@using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph
+
+<MudPaper Outlined="true" Class="pa-4 my-4">
+  <MudText Typo="Typo.h5" HtmlTag="h2">Create policy</MudText>
+  <MudText Class="mb-3">Create an unassigned policy in @_tenantName. Version is fixed at 1.</MudText>
+  <DirectoryStatus Error="_error" IsLoading="_isCreating" />
+  <MudTextField T="string" Label="Display Name" @bind-Value="_displayName" @bind-Value:after="DraftChanged"
+                Immediate="true" Required="true" Disabled="IsDisabled" />
+  <MudCheckBox T="bool" Label="Include Basic Claim Set" @bind-Value="_includeBasicClaimSet"
+               @bind-Value:after="DraftChanged" Disabled="IsDisabled" />
+  <MudText Typo="Typo.h6" Class="mt-3">Claims Schema (@_claims.Count / 50)</MudText>
+  <MudText Typo="Typo.body2">Each claim needs at least one output type: JWT, SAML, or both. No transformations are supported.</MudText>
+  @foreach (var claim in _claims)
+  {
+    <MudPaper @key="claim" Outlined="true" Class="pa-3 my-3">
+      <MudSelect T="ClaimValueMode" Label="Claim value" @bind-Value="claim.Mode"
+                 @bind-Value:after="@(() => ModeChanged(claim))" Disabled="IsDisabled">
+        <MudSelectItem Value="ClaimValueMode.DirectoryAttribute">Directory attribute</MudSelectItem>
+        <MudSelectItem Value="ClaimValueMode.ConstantValue">Constant value</MudSelectItem>
+      </MudSelect>
+      @if (claim.Mode == ClaimValueMode.DirectoryAttribute)
+      {
+        <MudSelect T="string" Label="Source" @bind-Value="claim.Source"
+                   @bind-Value:after="@(() => SourceChanged(claim))" Disabled="IsDisabled">
+          @foreach (var source in ClaimsMappingClaimSources.Sources)
+          {
+            <MudSelectItem T="string" Value="@source">@ClaimsMappingClaimSources.Label(source)</MudSelectItem>
+          }
+        </MudSelect>
+        <MudAutocomplete T="string" Label="Attribute ID" @bind-Value="claim.Id" @bind-Value:after="DraftChanged"
+                         SearchFunc="@((text, token) => SearchPropertiesAsync(claim.Source, text, token))"
+                         CoerceValue="true" CoerceText="false" Immediate="true" DebounceInterval="0" Disabled="IsDisabled"
+                         HelperText="Choose a known property or enter an attribute ID supported by Microsoft Entra." />
+      }
+      else
+      {
+        <MudTextField T="string" Label="Value" @bind-Value="claim.Value" @bind-Value:after="DraftChanged"
+                      Immediate="true" Disabled="IsDisabled" />
+      }
+      <MudTextField T="string" Label="JWT claim type" @bind-Value="claim.JwtClaimType" @bind-Value:after="DraftChanged"
+                    Immediate="true" Disabled="IsDisabled" />
+      <MudTextField T="string" Label="SAML claim type" @bind-Value="claim.SamlClaimType" @bind-Value:after="DraftChanged"
+                    Immediate="true" Disabled="IsDisabled" />
+      <MudButton OnClick="@(() => RemoveClaim(claim))" Disabled="IsDisabled" Color="Color.Error">Remove claim</MudButton>
+    </MudPaper>
+  }
+  <MudButton OnClick="AddClaim" Disabled="@(IsDisabled || _claims.Count >= CreateClaimsMappingPolicyRequest.MaximumClaims)"
+             Variant="Variant.Outlined" Class="my-3">Add claim</MudButton>
+  <MudButton OnClick="Review" Disabled="IsDisabled" Variant="Variant.Outlined" Class="ma-2">Review</MudButton>
+  @if (_preview is not null && _review is { } reviewed)
+  {
+    <MudText Typo="Typo.h6">Review generated definition</MudText>
+    <MudText>@reviewed.DisplayName — @reviewed.ClaimsSchema.Count claims. The policy will have no assignments.</MudText>
+    <pre style="white-space: pre-wrap; overflow-wrap: anywhere;">@_preview</pre>
+  }
+  <MudButton OnClick="CreateAsync" Disabled="@(IsDisabled || _review is null)" Variant="Variant.Filled"
+             Color="Color.Primary" Class="ma-2">Create policy</MudButton>
+  <MudButton OnClick="@(() => OnCancel.InvokeAsync())" Disabled="_isCreating" Class="ma-2">Cancel</MudButton>
+</MudPaper>
