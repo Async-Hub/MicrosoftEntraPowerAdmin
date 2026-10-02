@@ -1,0 +1,67 @@
+@using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph
+
+<MudPaper Outlined="true" Class="pa-4 my-4">
+  <MudText Typo="Typo.h5" HtmlTag="h2">Edit policy</MudText>
+  <DirectoryStatus Error="_error" IsLoading="_isSaving" />
+  @if (!_invalidated)
+  {
+    <MudText>Tenant: @_tenantName (@Context.TenantId)</MudText>
+    <MudText>Policy Object ID: @Context.Original.Policy.ObjectId</MudText>
+    <MudTextField T="string" Label="Display Name" @bind-Value="_draft.DisplayName" @bind-Value:after="DraftChanged"
+                  Immediate="true" Required="true" Disabled="IsDisabled" />
+    @if (_editing.CanEditDefinition)
+    {
+      <MudText Class="my-3">Version is fixed at 1.</MudText>
+      <ClaimsMappingPolicyDefinitionEditor Draft="_draft" IsDisabled="IsDisabled" OnChanged="DraftChanged" />
+    }
+    else
+    {
+      <MudAlert Severity="Severity.Info" Class="my-3">@_editing.Explanation</MudAlert>
+    }
+    <MudText Typo="Typo.h6" Class="mt-3">Current definition (read-only)</MudText>
+    @foreach (var definition in Context.Original.Policy.Definitions)
+    {
+      <ClaimsMappingDefinitionView Definition="definition" />
+    }
+    @if (Assignments is { } assignments && AssignmentIds.Count > 0)
+    {
+      <MudAlert Severity="Severity.Info" Class="my-3">
+        This policy is currently assigned to @assignments.ServicePrincipals.Count Enterprise Applications.
+        Changes to the policy definition can affect tokens issued for those applications.
+        @if (assignments.Applications.Count + assignments.OtherObjects.Count > 0)
+        {
+          <MudText>Additional directory assignments: @(assignments.Applications.Count + assignments.OtherObjects.Count).</MudText>
+        }
+      </MudAlert>
+      @foreach (var principal in assignments.ServicePrincipals)
+      {
+        <MudText>@principal.DisplayName (@principal.ObjectId)</MudText>
+      }
+    }
+    <MudButton OnClick="Review" Disabled="IsDisabled" Variant="Variant.Outlined" Class="ma-2">Review changes</MudButton>
+    @if (_preview is not null)
+    {
+      <MudText Typo="Typo.h6">Generated definition preview (read-only)</MudText>
+      <pre style="white-space: pre-wrap; overflow-wrap: anywhere;">@_preview</pre>
+    }
+    @if (_review is not null)
+    {
+      <MudText>@(_definitionChanged ? "The changed definition will be sent to Graph." : "Only the display name will be sent to Graph. The definition is preserved.")</MudText>
+      @if (NeedsConfirmation)
+      {
+        <MudAlert Severity="Severity.Info" Class="my-3">
+          Confirm definition changes for @_review.DisplayName, Policy Object ID @Context.Original.Policy.ObjectId,
+          in tenant @_tenantName (@Context.TenantId).
+          Assigned Enterprise Applications: @(Assignments?.ServicePrincipals.Count ?? 0).
+          Token claims may change for applications using this policy.
+        </MudAlert>
+        <MudCheckBox T="bool" Label="I confirm these definition changes for the assigned applications"
+                     @bind-Value="_confirmed" Disabled="IsDisabled" />
+      }
+    }
+    <MudButton OnClick="SaveAsync" Disabled="@(IsDisabled || _review is null || (NeedsConfirmation && !_confirmed))"
+               Variant="Variant.Filled" Color="Color.Primary" Class="ma-2">Save</MudButton>
+    <MudButton OnClick="@(() => OnReload.InvokeAsync())" Disabled="_isSaving" Class="ma-2">Reload latest (discard edits)</MudButton>
+  }
+  <MudButton OnClick="@(() => OnCancel.InvokeAsync())" Disabled="_isSaving" Class="ma-2">Cancel</MudButton>
+</MudPaper>

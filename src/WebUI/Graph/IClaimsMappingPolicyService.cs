@@ -4,6 +4,10 @@ namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 
 public interface IClaimsMappingPolicyService
 {
+  Task<Result<ClaimsMappingPolicyEditContext, GraphOperationError>> BeginEditAsync(
+    Guid objectId, CancellationToken cancellationToken = default);
+  Task<Result<ClaimsMappingPolicyDetails, GraphOperationError>> UpdateAsync(
+    ClaimsMappingPolicyEditContext context, UpdateClaimsMappingPolicyRequest request, CancellationToken cancellationToken = default);
   Result<ClaimsMappingPolicyAssignmentContext, GraphOperationError> BeginAssignment();
   Task<Result<IReadOnlyList<ClaimsMappingPolicyListItem>, GraphOperationError>> GetAssignedPoliciesAsync(
     ClaimsMappingPolicyAssignmentContext context, Guid servicePrincipalObjectId, CancellationToken cancellationToken = default);

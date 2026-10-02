@@ -17,6 +17,9 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
   private ServicePrincipalListItem? _unassignPrincipal;
   private IReadOnlyList<Guid> _assignedPrincipalIds = [];
   private GraphOperationError? _operationError;
+  private ClaimsMappingPolicyEditContext? _editContext;
+  private CancellationTokenSource? _editLoad;
+  private bool _openingEditor;
   private GraphOperationError? DisplayError => _state.Error ??
     (_state.Value is { Assignments.IsFailure: true } details ? details.Assignments.Error : null);
   protected override void OnInitialized() => _state = new(tenants, OnTenantChanged);
@@ -38,7 +41,7 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
 
   private void BeginConfirmation(ServicePrincipalListItem? principal)
   {
-    if (_tenantChanged || _state.IsLoading || _confirmation is not null || _state.Value is not { Assignments.IsSuccess: true } details)
+    if (_tenantChanged || _state.IsLoading || _confirmation is not null || _editContext is not null || _openingEditor || _state.Value is not { Assignments.IsSuccess: true } details)
       return;
     if (principal is not null && !details.Assignments.Value.ServicePrincipals.Any(item => item.ObjectId == principal.ObjectId))
       return;
@@ -54,10 +57,68 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
 
   private void Cancel()
   {
+    _editLoad?.Cancel();
+    _editLoad = null;
+    _editContext = null;
+    _openingEditor = false;
     _confirmation = null;
     _confirmationPolicy = null;
     _unassignPrincipal = null;
     _assignedPrincipalIds = [];
+  }
+
+  private async Task EditAsync()
+  {
+    if (_tenantChanged || _state.IsLoading || _openingEditor || _confirmation is not null || !Guid.TryParse(ObjectId, out var id))
+      return;
+    Cancel();
+    _openingEditor = true;
+    using var cancellation = new CancellationTokenSource();
+    _editLoad = cancellation;
+    try
+    {
+      var result = await service.BeginEditAsync(id, cancellation.Token);
+      if (_tenantChanged || cancellation.IsCancellationRequested || _editLoad != cancellation)
+        return;
+      _operationError = result.IsFailure ? result.Error : null;
+      _editContext = result.IsSuccess ? result.Value : null;
+      if (result.IsFailure && result.Error.Type == GraphOperationErrorType.NotFound)
+        await PolicyMissingAsync(result.Error);
+    }
+    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+    {
+      // A tenant switch, navigation, or cancellation discarded this editor load.
+    }
+    finally
+    {
+      if (_editLoad == cancellation)
+      {
+        _editLoad = null;
+        _openingEditor = false;
+      }
+    }
+  }
+
+  private async Task PolicySavedAsync(DetailsModel details)
+  {
+    Cancel();
+    if (_tenantChanged)
+      return;
+    _operationError = null;
+    await _state.LoadAsync(_ => Task.FromResult(CSharpFunctionalExtensions.Result.Success<DetailsModel, GraphOperationError>(details)));
+    snackbar.Add("Policy updated.", Severity.Success);
+  }
+
+  private Task PolicyMissingAsync(GraphOperationError error)
+  {
+    Cancel();
+    if (!_tenantChanged)
+    {
+      snackbar.Add(error.Message, Severity.Info);
+      // The list page reloads Graph state on initialization, including externally deleted policies.
+      navigation.NavigateTo("/claims-mapping-policies");
+    }
+    return Task.CompletedTask;
   }
 
   private async Task FinishedAsync(GraphOperationError? error)
@@ -97,5 +158,9 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
     });
   }
 
-  public void Dispose() => _state.Dispose();
+  public void Dispose()
+  {
+    Cancel();
+    _state.Dispose();
+  }
 }

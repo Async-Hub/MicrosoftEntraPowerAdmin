@@ -13,7 +13,9 @@ public enum GraphOperationErrorType
   Throttled,
   GraphFailure,
   InvalidInput,
-  NotFound
+  NotFound,
+  StaleState,
+  ConfirmationRequired
 }
 
 public sealed record GraphOperationError(

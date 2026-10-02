@@ -10,9 +10,7 @@ public partial class CreateClaimsMappingPolicy(ICurrentTenantContext tenants, IC
   [Parameter] public EventCallback<ClaimsMappingPolicyListItem> OnCreated { get; set; }
   [Parameter] public EventCallback OnCancel { get; set; }
 
-  private string _displayName = "";
-  private bool _includeBasicClaimSet = true;
-  private readonly List<ClaimDraft> _claims = [];
+  private readonly ClaimsMappingPolicyDraft _draft = new();
   private string _tenantName = "";
   private string? _preview;
   private CreateClaimsMappingPolicyRequest? _review;
@@ -36,50 +34,11 @@ public partial class CreateClaimsMappingPolicy(ICurrentTenantContext tenants, IC
     _error = null;
   }
 
-  private void AddClaim()
-  {
-    if (IsDisabled || _claims.Count >= CreateClaimsMappingPolicyRequest.MaximumClaims)
-      return;
-    _claims.Add(new());
-    DraftChanged();
-  }
-
-  private void RemoveClaim(ClaimDraft claim)
-  {
-    if (IsDisabled)
-      return;
-    _claims.Remove(claim);
-    DraftChanged();
-  }
-
-  private void ModeChanged(ClaimDraft claim)
-  {
-    claim.Value = "";
-    claim.Id = "";
-    claim.Source = "user";
-    DraftChanged();
-  }
-
-  private void SourceChanged(ClaimDraft claim)
-  {
-    claim.Id = "";
-    DraftChanged();
-  }
-
-  private static Task<IEnumerable<string>> SearchPropertiesAsync(string source, string text, CancellationToken token)
-  {
-    token.ThrowIfCancellationRequested();
-    return Task.FromResult(ClaimsMappingClaimSources.PropertiesFor(source)
-      .Where(property => string.IsNullOrEmpty(text) || property.Contains(text, StringComparison.OrdinalIgnoreCase)));
-  }
-
   private void Review()
   {
     if (IsDisabled)
       return;
-    var request = new CreateClaimsMappingPolicyRequest(_displayName, _includeBasicClaimSet,
-      _claims.Select(claim => new CreateClaimsSchemaEntry(claim.Mode, claim.Source, claim.Id,
-        claim.JwtClaimType, claim.SamlClaimType, claim.Value)).ToArray()).ValidateAndNormalize();
+    var request = _draft.ToRequest().ValidateAndNormalize();
     _error = request.IsFailure ? new(GraphOperationErrorType.InvalidInput, request.Error) : null;
     _review = request.IsSuccess ? request.Value : null;
     _preview = _review is null ? null : ClaimsMappingPolicyDefinitionSerializer.Serialize(_review, indented: true);
@@ -125,8 +84,8 @@ public partial class CreateClaimsMappingPolicy(ICurrentTenantContext tenants, IC
     _creation?.Cancel();
     _review = null;
     _preview = null;
-    _claims.Clear();
-    _displayName = "";
+    _draft.Claims.Clear();
+    _draft.DisplayName = "";
     _error = new(GraphOperationErrorType.TenantChanged, "The tenant changed. Cancel and start a new policy draft.");
     _ = InvokeAsync(StateHasChanged);
   }
@@ -136,15 +95,5 @@ public partial class CreateClaimsMappingPolicy(ICurrentTenantContext tenants, IC
     _disposed = true;
     tenants.TenantChanged -= OnTenantChanged;
     _creation?.Cancel();
-  }
-
-  private sealed class ClaimDraft
-  {
-    public ClaimValueMode Mode { get; set; }
-    public string Source { get; set; } = "user";
-    public string Id { get; set; } = "";
-    public string JwtClaimType { get; set; } = "";
-    public string SamlClaimType { get; set; } = "";
-    public string Value { get; set; } = "";
   }
 }

@@ -10,12 +10,22 @@
 }
 @if (!_state.IsLoading)
 {
-  <MudButton OnClick="LoadAsync" Disabled="@(_confirmation is not null)" Class="mb-3">Refresh</MudButton>
+  <MudButton OnClick="LoadAsync" Disabled="@(_confirmation is not null || _editContext is not null || _openingEditor)" Class="mb-3">Refresh</MudButton>
 }
-@if (_state.Value is { } details)
+@if (_openingEditor)
+{
+  <MudProgressLinear Indeterminate="true" Color="Color.Primary" aria-label="Loading latest policy for editing" />
+}
+@if (_editContext is { } editContext)
+{
+  <EditClaimsMappingPolicy @key="editContext" Context="editContext" OnCancel="Cancel" OnReload="EditAsync"
+                          OnSaved="PolicySavedAsync" OnMissing="PolicyMissingAsync" />
+}
+@if (_editContext is null && _state.Value is { } details)
 {
   <MudPaper Outlined="true" Class="pa-4 mb-4">
     <MudText Typo="Typo.h5" HtmlTag="h2">@details.Policy.DisplayName</MudText>
+    <MudButton OnClick="EditAsync" Disabled="@(_confirmation is not null || _openingEditor)" Color="Color.Primary" Class="my-3">Edit</MudButton>
     <MudText Class="mt-2">Policy Object ID</MudText>
     <CopyIdentifier Value="details.Policy.ObjectId" Label="Policy Object ID" />
     <MudText Class="mt-3">IsOrganizationDefault: @(details.Policy.IsOrganizationDefault?.ToString() ?? "Not returned")</MudText>
@@ -31,7 +41,7 @@
   </MudPaper>
   <MudPaper Outlined="true" Class="pa-4">
     <MudText Typo="Typo.h6" HtmlTag="h2">Applies to</MudText>
-    <MudButton OnClick="Assign" Disabled="@(_confirmation is not null || details.Assignments.IsFailure)" Color="Color.Primary" Class="my-3">Assign to Enterprise Application</MudButton>
+    <MudButton OnClick="Assign" Disabled="@(_confirmation is not null || _openingEditor || details.Assignments.IsFailure)" Color="Color.Primary" Class="my-3">Assign to Enterprise Application</MudButton>
     @if (details.Assignments.IsSuccess)
     {
       var assignments = details.Assignments.Value;
@@ -43,8 +53,8 @@
           <MudTd DataLabel="Application / Client ID"><CopyIdentifier Value="context.AppId" Label="Application / Client ID" /></MudTd>
           <MudTd DataLabel="Service Principal Object ID"><CopyIdentifier Value="context.ObjectId" Label="Service Principal Object ID" /></MudTd>
           <MudTd>
-            <MudButton OnClick="@(() => OpenServicePrincipal(context.ObjectId))" Disabled="@(_confirmation is not null)">Open</MudButton>
-            <MudButton OnClick="@(() => Unassign(context))" Disabled="@(_confirmation is not null)">Unassign</MudButton>
+            <MudButton OnClick="@(() => OpenServicePrincipal(context.ObjectId))" Disabled="@(_confirmation is not null || _openingEditor)">Open</MudButton>
+            <MudButton OnClick="@(() => Unassign(context))" Disabled="@(_confirmation is not null || _openingEditor)">Unassign</MudButton>
           </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText>No Service Principals returned for this policy.</MudText></NoRecordsContent>
