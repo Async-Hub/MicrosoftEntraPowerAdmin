@@ -32,8 +32,10 @@
 @if (_editContext is null && _state.Value is { } details)
 {
   <MudPaper Outlined="true" Class="pa-4 mb-4">
-    <MudText Typo="Typo.h5" HtmlTag="h2">@details.Policy.DisplayName</MudText>
-    <MudButton OnClick="EditAsync" Disabled="HasMutationWorkflow" Color="Color.Primary" Class="my-3">Edit</MudButton>
+    <div class="policy-details-heading">
+      <MudText Typo="Typo.h5" HtmlTag="h2" Class="directory-value">@details.Policy.DisplayName</MudText>
+      <MudButton OnClick="EditAsync" Disabled="HasMutationWorkflow" Color="Color.Primary">Edit</MudButton>
+    </div>
     <MudText Class="mt-2">Policy Object ID</MudText>
     <CopyIdentifier Value="details.Policy.ObjectId" Label="Policy Object ID" />
     <MudText Class="mt-3">IsOrganizationDefault: @(details.Policy.IsOrganizationDefault?.ToString() ?? "Not returned")</MudText>

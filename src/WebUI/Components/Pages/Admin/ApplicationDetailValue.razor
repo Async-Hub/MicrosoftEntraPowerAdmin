@@ -1,0 +1,13 @@
+@if (Values is { Count: > 0 })
+{
+  <ul class="application-detail-list">
+    @foreach (var value in Values)
+    {
+      <li><span class="@ValueClass(value)">@DisplayValue(value)</span></li>
+    }
+  </ul>
+}
+else
+{
+  <span class="@ValueClass(ScalarValue)">@DisplayValue(ScalarValue)</span>
+}

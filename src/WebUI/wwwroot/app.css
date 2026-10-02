@@ -1,6 +1,20 @@
 html, body { margin: 0; }
 .directory-id { font-family: monospace; overflow-wrap: anywhere; }
 .directory-value { overflow-wrap: anywhere; }
+.application-details dl { margin: .5rem 0 0; }
+.application-details section + section { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--mud-palette-lines-default); }
+.application-detail-row { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: .25rem 1.5rem; align-items: baseline; padding: .625rem 0; }
+.application-detail-row dt { font-weight: 500; }
+.application-detail-row dt, .application-detail-row dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.application-detail-empty { color: var(--mud-palette-text-secondary); }
+.application-detail-list { margin: 0; padding-left: 1.25rem; }
+.application-detail-list li + li { margin-top: .375rem; }
+@media (max-width: 599.98px) {
+  .application-detail-row { grid-template-columns: minmax(0, 1fr); }
+}
 .policy-json { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 36rem; overflow: auto; padding: 1rem; background: #f5f5f5; }
+.policy-details-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.policy-details-heading h2 { min-width: 0; }
+.policy-details-heading button { flex-shrink: 0; }
 .user-menu { display: flex; align-items: center; gap: 1rem; }
 #blazor-error-ui { display: none; position: fixed; bottom: 0; width: 100%; padding: 1rem; background: #fff3cd; color: #222; z-index: 2000; }

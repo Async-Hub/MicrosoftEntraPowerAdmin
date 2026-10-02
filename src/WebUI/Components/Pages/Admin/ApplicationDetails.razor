@@ -1,7 +1,7 @@
 @page "/applications/{ObjectId}"
 
 <PageTitle>App Registration - MEPA</PageTitle>
-<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">App Registration</MudText>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4 directory-value">@(_state.Value?.Details.Application.DisplayName ?? "App Registration")</MudText>
 <MudButton Href="/applications" Class="mb-3">Back to App Registrations</MudButton>
 <DirectoryStatus Error="DisplayError" IsLoading="_state.IsLoading" />
 @if (!_state.IsLoading)
@@ -12,25 +12,83 @@
 {
   var details = inspection.Details;
   var item = details.Application;
-  <MudPaper Outlined="true" Class="pa-4 mb-4">
-    <MudText Typo="Typo.h5" HtmlTag="h2">@item.DisplayName</MudText>
-    <MudText Class="mt-2">Application / Client ID</MudText>
-    <CopyIdentifier Value="item.AppId" Label="Application / Client ID" />
-    <MudText Class="mt-2">Application Object ID</MudText>
-    <CopyIdentifier Value="item.ObjectId" Label="Application Object ID" />
-    <MudText Class="mt-3 directory-value">Description: @(details.Description ?? "Not configured")</MudText>
-    <MudText>Sign-in Audience: @(item.SignInAudience ?? "Not configured")</MudText>
-    <MudText>Created: @(item.CreatedDateTime?.ToString("u") ?? "Not available")</MudText>
-    <MudText>Publisher Domain: @(item.PublisherDomain ?? "Not configured")</MudText>
-    <MudText Typo="Typo.h6" HtmlTag="h2" Class="mt-4">API</MudText>
-    <MudText>api.acceptMappedClaims: @(details.AcceptMappedClaims?.ToString() ?? "Not configured")</MudText>
-    <MudText>api.requestedAccessTokenVersion: @(details.RequestedAccessTokenVersion?.ToString() ?? "Not configured")</MudText>
-    <MudText Typo="Typo.h6" HtmlTag="h2" Class="mt-4">Authentication and Identifiers</MudText>
-    <ReadOnlyValues Label="Web redirect URIs" Values="details.WebRedirectUris" />
-    <ReadOnlyValues Label="SPA redirect URIs" Values="details.SpaRedirectUris" />
-    <ReadOnlyValues Label="Public client redirect URIs" Values="details.PublicClientRedirectUris" />
-    <ReadOnlyValues Label="Identifier URIs" Values="details.IdentifierUris" />
-    <ReadOnlyValues Label="Tags" Values="details.Tags" />
+  <MudPaper Outlined="true" Class="pa-4 mb-4 application-details">
+    <section aria-labelledby="application-general-heading">
+      <MudText Typo="Typo.h6" HtmlTag="h2" id="application-general-heading">General</MudText>
+      <dl>
+        <div class="application-detail-row">
+          <dt>Application / Client ID</dt>
+          <dd>
+            @if (item.AppId.HasValue)
+            {
+              <CopyIdentifier Value="item.AppId" Label="Application / Client ID" />
+            }
+            else
+            {
+              <ApplicationDetailValue />
+            }
+          </dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Application Object ID</dt>
+          <dd><CopyIdentifier Value="item.ObjectId" Label="Application Object ID" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Description</dt>
+          <dd><ApplicationDetailValue Value="@details.Description" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Sign-in Audience</dt>
+          <dd><ApplicationDetailValue Value="@item.SignInAudience" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Created</dt>
+          <dd><ApplicationDetailValue Value="@FormatCreated(item.CreatedDateTime)" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Publisher Domain</dt>
+          <dd><ApplicationDetailValue Value="@item.PublisherDomain" IsTechnical="true" /></dd>
+        </div>
+      </dl>
+    </section>
+    <section aria-labelledby="application-api-heading">
+      <MudText Typo="Typo.h6" HtmlTag="h2" id="application-api-heading">API</MudText>
+      <dl>
+        <div class="application-detail-row">
+          <dt>Accept mapped claims</dt>
+          <dd><ApplicationDetailValue BooleanValue="details.AcceptMappedClaims" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Requested access token version</dt>
+          <dd><ApplicationDetailValue Value="@(details.RequestedAccessTokenVersion?.ToString())" /></dd>
+        </div>
+      </dl>
+    </section>
+    <section aria-labelledby="application-authentication-heading">
+      <MudText Typo="Typo.h6" HtmlTag="h2" id="application-authentication-heading">Authentication and Identifiers</MudText>
+      <dl>
+        <div class="application-detail-row">
+          <dt>Web redirect URIs</dt>
+          <dd><ApplicationDetailValue Values="details.WebRedirectUris" IsTechnical="true" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>SPA redirect URIs</dt>
+          <dd><ApplicationDetailValue Values="details.SpaRedirectUris" IsTechnical="true" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Public client redirect URIs</dt>
+          <dd><ApplicationDetailValue Values="details.PublicClientRedirectUris" IsTechnical="true" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Identifier URIs</dt>
+          <dd><ApplicationDetailValue Values="details.IdentifierUris" IsTechnical="true" /></dd>
+        </div>
+        <div class="application-detail-row">
+          <dt>Tags</dt>
+          <dd><ApplicationDetailValue Values="details.Tags" /></dd>
+        </div>
+      </dl>
+    </section>
   </MudPaper>
   <MudText Class="my-3">The Application / Client ID links these objects. Each object has its own tenant-specific Object ID.</MudText>
   <MudPaper Outlined="true" Class="pa-4">

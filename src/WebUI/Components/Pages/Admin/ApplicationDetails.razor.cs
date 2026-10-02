@@ -1,3 +1,4 @@
+using System.Globalization;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 using CSharpFunctionalExtensions;
@@ -37,6 +38,9 @@ public partial class ApplicationDetails(ICurrentTenantContext tenants, IApplicat
     if (_state.Value is { Related.IsSuccess: true } inspection && inspection.Related.Value.HasValue)
       navigation.NavigateTo($"/service-principals/{inspection.Related.Value.Value.ServicePrincipal.ObjectId:D}");
   }
+
+  private static string? FormatCreated(DateTimeOffset? value) =>
+    value?.ToUniversalTime().ToString("MMM d, yyyy, HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
 
   private void OnTenantChanged() => _ = InvokeAsync(() =>
   {
