@@ -42,7 +42,7 @@
       <MudSelect T="ClaimsMappingPolicyListItem" @bind-Value="_policy" ToStringFunc="PolicyLabel" Label="Claims Mapping Policy" Disabled="IsBusy">
         @foreach (var item in FilteredPolicies)
         {
-          <MudSelectItem Value="item">@item.DisplayName — Policy Object ID: @item.ObjectId</MudSelectItem>
+          <MudSelectItem Value="item">@item.DisplayName — Policy Object ID: <b>@item.ObjectId</b></MudSelectItem>
         }
       </MudSelect>
       @if (!_loading && _availablePolicies.Count == 0 && _error is null)
