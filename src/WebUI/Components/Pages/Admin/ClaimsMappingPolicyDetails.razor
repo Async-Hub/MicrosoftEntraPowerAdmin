@@ -10,11 +10,19 @@
 }
 @if (!_state.IsLoading)
 {
-  <MudButton OnClick="LoadAsync" Disabled="@(_confirmation is not null || _editContext is not null || _openingEditor)" Class="mb-3">Refresh</MudButton>
+  <MudButton OnClick="LoadAsync" Disabled="HasMutationWorkflow" Class="mb-3">Refresh</MudButton>
 }
 @if (_openingEditor)
 {
   <MudProgressLinear Indeterminate="true" Color="Color.Primary" aria-label="Loading latest policy for editing" />
+}
+@if (_openingDeletion)
+{
+  <MudProgressLinear Indeterminate="true" Color="Color.Error" aria-label="Loading latest policy and assignments for deletion" />
+}
+@if (_deleteContext is { } deleteContext)
+{
+  <DeleteClaimsMappingPolicyDialog @key="deleteContext" Context="deleteContext" OnCancel="Cancel" OnFinished="PolicyDeletedAsync" />
 }
 @if (_editContext is { } editContext)
 {
@@ -25,7 +33,7 @@
 {
   <MudPaper Outlined="true" Class="pa-4 mb-4">
     <MudText Typo="Typo.h5" HtmlTag="h2">@details.Policy.DisplayName</MudText>
-    <MudButton OnClick="EditAsync" Disabled="@(_confirmation is not null || _openingEditor)" Color="Color.Primary" Class="my-3">Edit</MudButton>
+    <MudButton OnClick="EditAsync" Disabled="HasMutationWorkflow" Color="Color.Primary" Class="my-3">Edit</MudButton>
     <MudText Class="mt-2">Policy Object ID</MudText>
     <CopyIdentifier Value="details.Policy.ObjectId" Label="Policy Object ID" />
     <MudText Class="mt-3">IsOrganizationDefault: @(details.Policy.IsOrganizationDefault?.ToString() ?? "Not returned")</MudText>
@@ -39,9 +47,21 @@
       <ClaimsMappingDefinitionView Definition="definition" />
     }
   </MudPaper>
+  @if (_deleteContext is null)
+  {
+    <MudPaper Outlined="true" Class="pa-4 mb-4">
+      <MudText Typo="Typo.h6" HtmlTag="h2">Delete policy</MudText>
+      <MudText Class="my-2">Permanently delete this policy after reviewing its current assignments and confirming its name.</MudText>
+      <MudButton OnClick="BeginDeleteAsync" Disabled="HasMutationWorkflow" Color="Color.Error" Variant="Variant.Outlined">Delete policy</MudButton>
+    </MudPaper>
+  }
   <MudPaper Outlined="true" Class="pa-4">
     <MudText Typo="Typo.h6" HtmlTag="h2">Applies to</MudText>
-    <MudButton OnClick="Assign" Disabled="@(_confirmation is not null || _openingEditor || details.Assignments.IsFailure)" Color="Color.Primary" Class="my-3">Assign to Enterprise Application</MudButton>
+    @if (_deleteBlocked)
+    {
+      <MudAlert Severity="Severity.Warning" Class="my-3">This Claims Mapping Policy is currently assigned to one or more directory objects. Unassign the policy from all Enterprise Applications before deleting it. Review the assignments below.</MudAlert>
+    }
+    <MudButton OnClick="Assign" Disabled="@(HasMutationWorkflow || details.Assignments.IsFailure)" Color="Color.Primary" Class="my-3">Assign to Enterprise Application</MudButton>
     @if (details.Assignments.IsSuccess)
     {
       var assignments = details.Assignments.Value;
@@ -53,8 +73,8 @@
           <MudTd DataLabel="Application / Client ID"><CopyIdentifier Value="context.AppId" Label="Application / Client ID" /></MudTd>
           <MudTd DataLabel="Service Principal Object ID"><CopyIdentifier Value="context.ObjectId" Label="Service Principal Object ID" /></MudTd>
           <MudTd>
-            <MudButton OnClick="@(() => OpenServicePrincipal(context.ObjectId))" Disabled="@(_confirmation is not null || _openingEditor)">Open</MudButton>
-            <MudButton OnClick="@(() => Unassign(context))" Disabled="@(_confirmation is not null || _openingEditor)">Unassign</MudButton>
+            <MudButton OnClick="@(() => OpenServicePrincipal(context.ObjectId))" Disabled="HasMutationWorkflow">Open</MudButton>
+            <MudButton OnClick="@(() => Unassign(context))" Disabled="HasMutationWorkflow">Unassign</MudButton>
           </MudTd>
         </RowTemplate>
         <NoRecordsContent><MudText>No Service Principals returned for this policy.</MudText></NoRecordsContent>
@@ -68,7 +88,7 @@
             <MudTd DataLabel="Display Name">@context.DisplayName</MudTd>
             <MudTd DataLabel="Application / Client ID"><CopyIdentifier Value="context.AppId" Label="Application / Client ID" /></MudTd>
             <MudTd DataLabel="Application Object ID"><CopyIdentifier Value="context.ObjectId" Label="Application Object ID" /></MudTd>
-            <MudTd><MudButton OnClick="@(() => OpenApplication(context.ObjectId))">Open</MudButton></MudTd>
+            <MudTd><MudButton OnClick="@(() => OpenApplication(context.ObjectId))" Disabled="HasMutationWorkflow">Open</MudButton></MudTd>
           </RowTemplate>
         </MudTable>
       }

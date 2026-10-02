@@ -20,6 +20,12 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
   private ClaimsMappingPolicyEditContext? _editContext;
   private CancellationTokenSource? _editLoad;
   private bool _openingEditor;
+  private ClaimsMappingPolicyDeletionContext? _deleteContext;
+  private CancellationTokenSource? _deleteLoad;
+  private bool _openingDeletion;
+  private bool _deleteBlocked;
+  private bool HasMutationWorkflow => _confirmation is not null || _editContext is not null || _openingEditor
+    || _deleteContext is not null || _openingDeletion;
   private GraphOperationError? DisplayError => _state.Error ??
     (_state.Value is { Assignments.IsFailure: true } details ? details.Assignments.Error : null);
   protected override void OnInitialized() => _state = new(tenants, OnTenantChanged);
@@ -41,7 +47,7 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
 
   private void BeginConfirmation(ServicePrincipalListItem? principal)
   {
-    if (_tenantChanged || _state.IsLoading || _confirmation is not null || _editContext is not null || _openingEditor || _state.Value is not { Assignments.IsSuccess: true } details)
+    if (_tenantChanged || _state.IsLoading || HasMutationWorkflow || _state.Value is not { Assignments.IsSuccess: true } details)
       return;
     if (principal is not null && !details.Assignments.Value.ServicePrincipals.Any(item => item.ObjectId == principal.ObjectId))
       return;
@@ -57,6 +63,11 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
 
   private void Cancel()
   {
+    _deleteLoad?.Cancel();
+    _deleteLoad = null;
+    _deleteContext = null;
+    _openingDeletion = false;
+    _deleteBlocked = false;
     _editLoad?.Cancel();
     _editLoad = null;
     _editContext = null;
@@ -69,7 +80,7 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
 
   private async Task EditAsync()
   {
-    if (_tenantChanged || _state.IsLoading || _openingEditor || _confirmation is not null || !Guid.TryParse(ObjectId, out var id))
+    if (_tenantChanged || _state.IsLoading || _openingEditor || _confirmation is not null || _deleteContext is not null || _openingDeletion || !Guid.TryParse(ObjectId, out var id))
       return;
     Cancel();
     _openingEditor = true;
@@ -97,6 +108,67 @@ public partial class ClaimsMappingPolicyDetails(ICurrentTenantContext tenants, I
         _openingEditor = false;
       }
     }
+  }
+
+  private async Task BeginDeleteAsync()
+  {
+    if (_tenantChanged || _state.IsLoading || HasMutationWorkflow || !Guid.TryParse(ObjectId, out var id))
+      return;
+    Cancel();
+    _openingDeletion = true;
+    _operationError = null;
+    using var cancellation = new CancellationTokenSource();
+    _deleteLoad = cancellation;
+    try
+    {
+      var result = await service.BeginDeleteAsync(id, cancellation.Token);
+      if (_tenantChanged || cancellation.IsCancellationRequested || _deleteLoad != cancellation)
+        return;
+      if (result.IsFailure)
+      {
+        _operationError = result.Error;
+        if (result.Error.Type == GraphOperationErrorType.NotFound)
+          await PolicyMissingAsync(result.Error);
+        return;
+      }
+      var context = result.Value;
+      await _state.LoadAsync(_ => Task.FromResult(CSharpFunctionalExtensions.Result.Success<DetailsModel, GraphOperationError>(context.Original)));
+      if (_tenantChanged || cancellation.IsCancellationRequested || _deleteLoad != cancellation)
+        return;
+      _deleteBlocked = context.HasAssignments;
+      if (!_deleteBlocked && context.AssignmentCount == 0)
+        _deleteContext = context;
+    }
+    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+    {
+      // Tenant switching or navigation superseded the deletion workflow.
+    }
+    finally
+    {
+      if (_deleteLoad == cancellation)
+      {
+        _deleteLoad = null;
+        _openingDeletion = false;
+      }
+    }
+  }
+
+  private async Task PolicyDeletedAsync(GraphOperationError? error)
+  {
+    Cancel();
+    if (_tenantChanged)
+      return;
+    if (error is null || error.Type == GraphOperationErrorType.NotFound)
+    {
+      _state.Dispose();
+      snackbar.Add(error?.Message ?? "Claims Mapping Policy deleted.", error is null ? Severity.Success : Severity.Info);
+      // Initializing the list page reloads the collection from Graph; never GET the deleted policy.
+      navigation.NavigateTo("/claims-mapping-policies");
+      return;
+    }
+    _operationError = error;
+    await LoadAsync();
+    _deleteBlocked = !_tenantChanged && error.Type == GraphOperationErrorType.PolicyIsAssigned;
   }
 
   private async Task PolicySavedAsync(DetailsModel details)

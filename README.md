@@ -92,7 +92,7 @@ Creation uses the official v1.0 SDK's `Policies.ClaimsMappingPolicies.PostAsync`
 
 The list refreshes after creation and retains the returned Graph resource as authoritative, including when the refresh fails or discovery has not yet picked it up. Its definitions appear read-only with a link to full details. Safe failures retain Graph status, code, and request identifiers for logging. For an uncertain network/timeout outcome, refresh the list before retrying creation.
 
-Cloning, editing, deleting, transformation editing, directory extension discovery, manifest changes, `acceptMappedClaims` configuration, and token testing/generation remain deferred. Newly created policies have no assignments. The raw definition remains a read-only view.
+Cloning, editing, transformation editing, directory extension discovery, manifest changes, `acceptMappedClaims` configuration, and token testing/generation remain deferred. Newly created policies have no assignments. The raw definition remains a read-only view.
 
 ## Assign and unassign Claims Mapping Policies
 
@@ -104,6 +104,16 @@ Assignment uses `ServicePrincipals[servicePrincipalObjectId].ClaimsMappingPolici
 
 Busy controls prevent duplicate submissions. Tenant changes discard selections and invalidate the confirmation identity even after switching back. Already submitted operations may complete in the original tenant; check that tenant's assignments before retrying. Safe errors distinguish missing consent/privileges, missing objects, duplicate/stale relationships, throttling, and uncertain network/timeout results without exposing authentication details.
 
+## Delete a Claims Mapping Policy
+
+Choose **Delete policy** in policy details. MEPA retrieves the latest policy and its paged `appliesTo` relationships before opening a dedicated confirmation. Any assigned directory object blocks deletion. Review the displayed Enterprise Applications and use their existing **Open** or **Unassign** actions; each unassignment remains a separate, explicitly confirmed operation. Reopen deletion after removing the final relationship.
+
+The confirmation identifies the current Display Name, Policy Object ID, and tenant, shows the available definition summary and assignment count, and explains that deletion is permanent. Type the exact current policy name (surrounding whitespace is trimmed) to enable the final **Delete policy** button. Missing, whitespace-only, or control-character names use the fixed phrase **DELETE**. Unsupported and malformed definitions can still be deleted without modifying their contents.
+
+Deletion uses the official v1.0 SDK's `Policies.ClaimsMappingPolicies[policyObjectId].DeleteAsync` and the existing delegated **Policy.ReadWrite.ApplicationConfiguration** permission ([delete API documentation](https://learn.microsoft.com/en-us/graph/api/claimsmappingpolicy-delete?view=graph-rest-1.0)). No new permissions are added. The service rechecks the current name and all assignments on one tenant-bound client immediately before DELETE. Busy controls prevent duplicate deletion and simultaneous mutations. Tenant switching cancels and discards confirmation, including switching away and back.
+
+After `204 No Content`, details close and the policy list reloads from Graph. A missing policy, including DELETE returning 404, also returns to the refreshed list with an informative notification. Permission, throttling, and uncertain transport failures use structured errors and refresh details without assuming deletion succeeded. MEPA adds no destructive retry or automatic unassignment. Bulk deletion, backup/restore, import/export, and other cleanup operations remain out of scope.
+
 ## Verification
 
 Offline tests cover configuration validation, initial tenant rules, circuit isolation, token tenant/user binding, tenant switching, organization mapping and identity verification, stale responses, cancellation, Graph/MSAL errors, tenant-specific challenge scopes and claims, protected administration, and antiforgery enforcement. They use isolated configuration, local authentication doubles, and the real Graph SDK with an in-memory transport, with no real credentials or Entra/Graph calls.
@@ -113,5 +123,7 @@ Directory tests additionally cover model mapping, nullable API settings, display
 Policy tests cover parsing and raw JSON preservation, malformed/partial definitions, policy and relationship paging, safe Graph/MSAL errors, cancellation, service-principal assignment correlation, protected policy routes, rendered structured/raw views, and clearing/reloading policy state on tenant changes. Creation tests cover serialization, validation, the 50-claim limit, safe write errors, nested definition strings, the authoritative POST response, and tenant changes before/during creation. Discovery transports assert GET-only requests; creation transports permit only the policy POST, with no assignment requests.
 
 Assignment tests use the real SDK with an in-memory transport to verify Object ID routing, policy reference construction, relationship-only DELETE, direct relationship paging, stale state, structured failures, cancellation, and tenant changes at every asynchronous stage. Offline component interaction tests cover both selectors, already assigned filtering, explicit confirmation, and duplicate-submission/tenant-switch guards.
+
+Deletion tests verify zero/one/multiple assignments, newly added relationships and later pages, exact-name and fallback confirmation, renamed/missing policies, malformed definitions, `204` handling, safe Graph/MSAL/transport failures, cancellation, and tenant isolation. Component tests cover fresh confirmation state, reuse of unassignment, busy guards, stale-assignment refresh, list reload and notifications, and disposal during tenant switching.
 
 To verify the real identity-provider round trip after configuration: sign in, select Tenant A, complete **Authenticate tenant** if prompted, and confirm its actual organization and connected status. Switch to Tenant B and confirm A's information disappears immediately and B's organization appears after its own authentication/consent. Test a tenant where your account has no access, and verify that a denied request never reports a connected state. Also check independent tab selection and sign-out. With several tenants and an unlisted sign-in tenant, confirm that the selector asks for an explicit choice.

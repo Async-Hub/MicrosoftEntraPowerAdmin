@@ -1,0 +1,19 @@
+<MudPaper Outlined="true" Class="pa-4 my-4" role="dialog" aria-modal="false" aria-label="Delete Claims Mapping Policy confirmation">
+  <MudText Typo="Typo.h6" HtmlTag="h2">Delete Claims Mapping Policy?</MudText>
+  <DirectoryStatus Error="_error" IsLoading="_isDeleting" />
+  @if (!_invalidated)
+  {
+    <MudText Class="mt-3">Display Name: @Context.Original.Policy.DisplayName</MudText>
+    <MudText>Policy Object ID: @Context.Original.Policy.ObjectId</MudText>
+    <MudText>Tenant: @_tenantName (@Context.TenantId)</MudText>
+    <MudAlert Severity="Severity.Warning" Class="my-3">This action permanently deletes the policy from Microsoft Entra. It cannot be undone by MEPA.</MudAlert>
+    <MudText>Include Basic Claim Set: @IncludeBasicClaimSet</MudText>
+    <MudText>Claims Schema entries: @(Context.Original.Policy.ClaimsSchemaCount?.ToString() ?? "Unavailable")</MudText>
+    <MudText>Claims Transformations: @(Context.Original.Policy.ClaimsTransformationCount?.ToString() ?? "Unavailable")</MudText>
+    <MudText>Assignments: @(Context.AssignmentCount?.ToString() ?? "Unavailable")</MudText>
+    <MudText Class="mt-3">Type @Context.ConfirmationPhrase to confirm deletion.</MudText>
+    <MudTextField T="string" @bind-Value="_confirmation" Immediate="true" Label="Policy name confirmation" Disabled="_isDeleting" />
+  }
+  <MudButton OnClick="CancelAsync" Disabled="_isDeleting" Class="mt-3">Cancel</MudButton>
+  <MudButton OnClick="DeleteAsync" Disabled="@(!CanDelete)" Color="Color.Error" Variant="Variant.Filled" Class="mt-3">Delete policy</MudButton>
+</MudPaper>

@@ -15,7 +15,8 @@ public enum GraphOperationErrorType
   InvalidInput,
   NotFound,
   StaleState,
-  ConfirmationRequired
+  ConfirmationRequired,
+  PolicyIsAssigned
 }
 
 public sealed record GraphOperationError(
