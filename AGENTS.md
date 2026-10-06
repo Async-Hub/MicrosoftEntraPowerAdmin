@@ -934,14 +934,44 @@ Tests must be:
 * readable
 * repeatable
 * focused on behavior
+* valuable enough to justify their maintenance cost
 
 Follow Arrange / Act / Assert where appropriate.
 
-Test names should clearly describe expected behavior.
+Test names should clearly describe the behavior or invariant being protected.
 
-Prefer testing behavior rather than implementation details.
+Prefer testing observable behavior rather than implementation details.
+
+A unit test should normally have **one primary reason to fail**.
+
+This does not mean mechanically enforcing one assertion per test.
+Multiple assertions are appropriate when they collectively prove one
+behavior, outcome, or invariant.
+
+Use the **minimum number of assertions necessary** to establish the
+behavior under test.
+
+Split a test when its assertions verify independent behaviors that could
+reasonably fail for unrelated reasons.
+
+Prefer tests that remain valid after internal refactoring when externally
+observable behavior has not changed.
 
 Do not write tests merely to increase coverage.
+
+Do not maximize the number of tests.
+Maximize confidence provided by the test suite while minimizing its
+long-term maintenance cost.
+
+Before adding a test, consider:
+
+> What realistic regression would this test detect?
+
+If there is no meaningful answer, reconsider whether the test provides
+enough value to justify its existence.
+
+Avoid tests for trivial framework behavior, simple property accessors,
+or implementation details unless they protect an important contract.
 
 ---
 
@@ -1009,21 +1039,74 @@ Do not introduce another mocking/assertion framework without a concrete reason.
 
 # Test Assertions
 
-Prefer expressive assertions.
+Prefer expressive assertions that communicate the behavioral expectation.
 
-For example:
+Use the minimum number of assertions necessary to prove the behavior
+under test.
 
-```csharp
-result.IsSuccess.Should().BeTrue();
-result.Value.Should().Be(expected);
-```
+Do not apply a mechanical "one assertion per test" rule.
+
+Several assertions are appropriate when they describe different aspects
+of one logical result or invariant.
+
+For example, when verifying that Microsoft Entra identifiers remain
+semantically distinct, it is reasonable for one test to verify:
+
+* service principal object ID
+* application object ID
+* application/client ID
+
+when preserving those distinctions is the single behavior being tested.
+
+Split the test when assertions verify independent concerns.
+
+Avoid assertions against implementation details such as:
+
+* exact internal method invocation counts
+* exact invocation order
+* private implementation state
+* intermediate objects
+* exact number of external requests
+
+unless that detail is itself an intentional behavioral, performance,
+or protocol contract.
+
+Prefer state and output verification over interaction verification.
+
+For `Result`, verify the success/failure state and the meaningful
+returned value or error when both are necessary to establish the
+behavior.
 
 Avoid assertions that obscure the behavior under test.
 
-When testing `Result`, verify both:
+---
 
-* success/failure state
-* meaningful returned value/error
+# AI-Generated Tests
+
+Do not generate tests mechanically for every method, branch, property,
+or DTO.
+
+Before creating a test:
+
+1. identify the behavior or invariant being protected;
+2. identify a realistic regression the test would catch;
+3. check whether an existing test already protects that behavior;
+4. choose the smallest useful test boundary;
+5. avoid introducing test abstractions unless they reduce meaningful
+   duplication or improve readability.
+
+Do not create mocks merely because a dependency can be mocked.
+
+Prefer real domain objects and simple deterministic collaborators.
+Mock or fake external boundaries such as Microsoft Graph when needed.
+
+Do not reproduce the production algorithm inside the test.
+
+Do not make a test more complicated than the production behavior it
+protects.
+
+When modifying production code, prefer adding or changing the smallest
+set of tests necessary to protect the changed behavior.
 
 ---
 
