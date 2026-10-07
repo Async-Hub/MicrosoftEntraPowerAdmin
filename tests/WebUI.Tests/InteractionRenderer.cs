@@ -20,11 +20,12 @@ internal sealed class InteractionRenderer(IServiceProvider services, ILoggerFact
   }
   public IEnumerable<T> Components<T>() => _components.Values.OfType<T>();
   public MudButton Button(string label) => Components<MudButton>().Single(button => IsButton(button, label));
-  public bool IsButton(MudButton button, string label)
+  public bool IsButton(MudButton button, string label) => HasText(button, label);
+  public bool HasText(IComponent component, string text)
   {
-    var id = _components.Single(pair => ReferenceEquals(pair.Value, button)).Key;
+    var id = _components.Single(pair => ReferenceEquals(pair.Value, component)).Key;
     var frames = GetCurrentRenderTreeFrames(id);
-    return frames.Array.Take(frames.Count).Any(frame => frame.FrameType == RenderTreeFrameType.Text && frame.TextContent.Trim() == label);
+    return frames.Array.Take(frames.Count).Any(frame => frame.FrameType == RenderTreeFrameType.Text && frame.TextContent.Trim() == text);
   }
   protected override Task UpdateDisplayAsync(in RenderBatch batch)
   {

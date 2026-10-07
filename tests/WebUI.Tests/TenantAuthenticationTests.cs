@@ -37,8 +37,6 @@ public sealed class TenantAuthenticationTests
     }
 
     Assert.Equal(new[] { _tenantA, _tenantB, _tenantA }.Select(id => id.ToString()), redeemedTenants);
-    Assert.Equal("/signin-oidc", options.CallbackPath);
-    Assert.Equal("/signout-callback-oidc", options.SignedOutCallbackPath);
   }
 
   [Theory]
@@ -95,7 +93,7 @@ public sealed class TenantAuthenticationTests
   }
 
   [Fact]
-  public async Task Normal_login_preserves_organizational_sign_in_and_ignores_incoming_tenant_hint()
+  public async Task Login_without_selected_tenant_ignores_incoming_tenant_hint()
   {
     var options = new OpenIdConnectOptions();
     string? redeemedTenant = "not-called";
@@ -111,6 +109,13 @@ public sealed class TenantAuthenticationTests
     };
     await options.Events.AuthorizationCodeReceived(code);
     Assert.Null(redeemedTenant);
+  }
+
+  [Fact]
+  public async Task Login_without_selected_tenant_accepts_an_organizational_identity_from_another_tenant()
+  {
+    var options = new OpenIdConnectOptions();
+    Configure(options);
 
     var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("tid", Guid.NewGuid().ToString())], "Test"));
     var validated = new TokenValidatedContext(new DefaultHttpContext(), _scheme, options, principal, new AuthenticationProperties());

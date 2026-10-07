@@ -7,7 +7,7 @@ namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tests;
 public sealed class TenantViewStateTests
 {
   [Fact]
-  public async Task Tenant_switch_clears_loaded_model_before_notifying_page()
+  public async Task Tenant_switch_clears_loaded_model_and_notifies_page()
   {
     var context = new GraphTestContext();
     context.Tenants.SelectTenant(context.TenantA);
@@ -59,19 +59,28 @@ public sealed class TenantViewStateTests
   }
 
   [Fact]
-  public async Task Failure_clears_previous_data_and_disposal_unsubscribes()
+  public async Task Failed_load_replaces_previous_data_with_the_error()
   {
     var context = new GraphTestContext();
-    var notifications = 0;
-    var state = new TenantViewState<string>(context.Tenants, () => notifications++);
+    using var state = new TenantViewState<string>(context.Tenants, () => { });
     await state.LoadAsync(_ => Task.FromResult(Result.Success<string, GraphOperationError>("Loaded")));
     var error = new GraphOperationError(GraphOperationErrorType.Forbidden, "Access denied");
     await state.LoadAsync(_ => Task.FromResult(Result.Failure<string, GraphOperationError>(error)));
     Assert.Null(state.Value);
     Assert.Equal(error, state.Error);
     Assert.True(state.HasLoaded);
+  }
+
+  [Fact]
+  public void Disposed_state_does_not_notify_the_page_on_tenant_changes()
+  {
+    var context = new GraphTestContext();
+    var notified = false;
+    using var state = new TenantViewState<string>(context.Tenants, () => notified = true);
+
     state.Dispose();
     context.Tenants.SelectTenant(context.TenantB);
-    Assert.Equal(0, notifications);
+
+    Assert.False(notified);
   }
 }

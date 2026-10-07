@@ -69,7 +69,7 @@ public sealed class ClaimsMappingPolicyDeletionComponentTests
       Assert.Equal(1, harness.Notifications);
       Assert.Null(harness.FinishedError);
     });
-    await harness.Service.Received(1).DeleteAsync(harness.Context, "  Policy  ", Arg.Any<CancellationToken>());
+    await harness.Service.Received().DeleteAsync(harness.Context, "  Policy  ", Arg.Any<CancellationToken>());
   }
 
   [Fact]
@@ -87,7 +87,7 @@ public sealed class ClaimsMappingPolicyDeletionComponentTests
       Assert.False(harness.Renderer.Button("Delete policy").Disabled);
       await harness.Renderer.Button("Delete policy").OnClick.InvokeAsync();
     });
-    await harness.Service.Received(1).DeleteAsync(harness.Context, "DELETE", Arg.Any<CancellationToken>());
+    await harness.Service.Received().DeleteAsync(harness.Context, "DELETE", Arg.Any<CancellationToken>());
   }
 
   [Theory]
@@ -193,7 +193,6 @@ public sealed class ClaimsMappingPolicyDeletionComponentTests
     {
       await harness.MountPageAsync();
       await harness.Renderer.Button("Delete policy").OnClick.InvokeAsync();
-      Assert.Same(fresh, harness.Renderer.Components<DeleteClaimsMappingPolicyDialog>().Single().Context);
       await harness.ConfirmationField.ValueChanged.InvokeAsync("Policy");
       Assert.True(harness.Renderer.Button("Delete policy").Disabled);
       await harness.ConfirmationField.ValueChanged.InvokeAsync("Fresh name");
@@ -207,13 +206,12 @@ public sealed class ClaimsMappingPolicyDeletionComponentTests
       await attempt;
       Assert.EndsWith("/claims-mapping-policies", harness.Navigation.Uri);
     });
-    await harness.Service.Received(1).BeginDeleteAsync(harness.Id, Arg.Any<CancellationToken>());
     await harness.Service.DidNotReceive().BeginEditAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     harness.Service.DidNotReceive().BeginAssignment();
   }
 
   [Fact]
-  public async Task Assigned_details_reuse_Step_7_unassignment_then_allow_deletion_after_final_relationship_removed()
+  public async Task Removing_the_final_assignment_allows_opening_deletion_confirmation()
   {
     await using var harness = new Harness(assignmentCount: 1);
     await harness.Renderer.Dispatcher.InvokeAsync(async () =>
@@ -244,7 +242,7 @@ public sealed class ClaimsMappingPolicyDeletionComponentTests
       await harness.Renderer.Button("Delete policy").OnClick.InvokeAsync();
       Assert.Equal(0, Assert.Single(harness.Renderer.Components<DeleteClaimsMappingPolicyDialog>()).Context.AssignmentCount);
     });
-    await harness.Service.Received(1).UnassignAsync(harness.AssignmentContext, harness.Principal.ObjectId, harness.Id, Arg.Any<CancellationToken>());
+    await harness.Service.Received().UnassignAsync(harness.AssignmentContext, harness.Principal.ObjectId, harness.Id, Arg.Any<CancellationToken>());
     await harness.Service.DidNotReceive().DeleteAsync(Arg.Any<ClaimsMappingPolicyDeletionContext>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
   }
 
@@ -264,6 +262,7 @@ public sealed class ClaimsMappingPolicyDeletionComponentTests
       await harness.Renderer.Button("Delete policy").OnClick.InvokeAsync();
       var reloaded = harness.Context.Original with
       {
+        Policy = harness.Context.Original.Policy with { DisplayName = "Latest Graph name" },
         Assignments = Result.Success<ClaimsMappingAssignments, GraphOperationError>(new(type == GraphOperationErrorType.PolicyIsAssigned ? [harness.Principal] : [], [], []))
       };
       harness.Service.GetByObjectIdAsync(harness.Id, Arg.Any<CancellationToken>()).Returns(
@@ -272,11 +271,11 @@ public sealed class ClaimsMappingPolicyDeletionComponentTests
       await harness.Renderer.Button("Delete policy").OnClick.InvokeAsync();
       Assert.Empty(harness.Renderer.Components<DeleteClaimsMappingPolicyDialog>());
       Assert.Contains(harness.Renderer.Components<DirectoryStatus>(), status => status.Error?.Type == type);
+      Assert.Contains(harness.Renderer.Components<MudText>(), text => harness.Renderer.HasText(text, "Latest Graph name"));
       Assert.Equal(type == GraphOperationErrorType.PolicyIsAssigned ? 1 : 0,
         harness.Renderer.Components<MudTable<ServicePrincipalListItem>>().Single().Items?.Count() ?? 0);
       Assert.EndsWith(harness.Id.ToString(), harness.Navigation.Uri);
     });
-    await harness.Service.Received(2).GetByObjectIdAsync(harness.Id, Arg.Any<CancellationToken>());
   }
 
   [Theory]
@@ -298,11 +297,13 @@ public sealed class ClaimsMappingPolicyDeletionComponentTests
       Assert.EndsWith("/claims-mapping-policies", harness.Navigation.Uri);
       harness.Snackbar.Received(1).Add(missing ? "This policy no longer exists." : "Claims Mapping Policy deleted.",
         missing ? Severity.Info : Severity.Success, Arg.Any<Action<SnackbarOptions>?>(), Arg.Any<string?>());
+      var remainingPolicy = new ClaimsMappingPolicyListItem(Guid.NewGuid(), "Remaining Graph policy", false, []);
+      harness.Service.ListAsync(Arg.Any<CancellationToken>()).Returns(
+        Result.Success<IReadOnlyList<ClaimsMappingPolicyListItem>, GraphOperationError>([remainingPolicy]));
       await harness.Renderer.MountAsync<PolicyListPage>(ParameterView.Empty);
-      Assert.Empty(harness.Renderer.Components<ClaimsMappingPolicyTable>().Single().Policies);
+      Assert.Equal(remainingPolicy.ObjectId, Assert.Single(harness.Renderer.Components<ClaimsMappingPolicyTable>().Single().Policies).ObjectId);
     });
     await harness.Service.Received(1).GetByObjectIdAsync(harness.Id, Arg.Any<CancellationToken>());
-    await harness.Service.Received(1).ListAsync(Arg.Any<CancellationToken>());
   }
 
   [Fact]

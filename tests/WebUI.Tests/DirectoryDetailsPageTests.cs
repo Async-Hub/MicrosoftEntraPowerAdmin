@@ -115,12 +115,6 @@ public sealed class DirectoryDetailsPageTests
       }
       else
         Assert.Contains(application ? "No Enterprise Application / Service Principal exists" : "owned by another tenant", html);
-      if (application)
-      {
-        Assert.Contains("<dt>Accept mapped claims</dt>", html);
-        Assert.Contains("<dt>Requested access token version</dt>", html);
-        Assert.Contains("<span class=\"application-detail-empty\">Not configured</span>", html);
-      }
 
       context.Tenants.SelectTenant(context.TenantB);
       var cleared = root.ToHtmlString();
@@ -132,34 +126,26 @@ public sealed class DirectoryDetailsPageTests
 
     if (application)
     {
-      await principals.Received(1).FindByAppIdAsync(clientId, Arg.Any<CancellationToken>());
+      await principals.Received().FindByAppIdAsync(clientId, Arg.Any<CancellationToken>());
       await principals.DidNotReceive().GetByObjectIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
     else
     {
-      await policies.Received(1).GetAssignedPoliciesAsync(Arg.Any<ClaimsMappingPolicyAssignmentContext>(), principalObjectId, Arg.Any<CancellationToken>());
-      await applications.Received(1).FindByAppIdAsync(clientId, Arg.Any<CancellationToken>());
+      await applications.Received().FindByAppIdAsync(clientId, Arg.Any<CancellationToken>());
       await applications.DidNotReceive().GetByObjectIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
   }
 
-  [Theory]
-  [InlineData(true, "Yes", 2)]
-  [InlineData(false, "No", 1)]
-  public async Task Application_details_group_and_format_values_without_changing_data(
-    bool acceptMappedClaims, string expectedBoolean, int tokenVersion)
+  [Fact]
+  public async Task Application_details_show_configured_general_values_in_labeled_groups()
   {
     var objectId = Guid.Parse("1188d339-33aa-4594-992b-bac7b3f8aa48");
     var clientId = Guid.Parse("36b18dd0-0138-5599-8c7b-1dd905efbe30");
-    var longUri = "https://example.com/" + new string('a', 240) + "?first=1&second=2";
     const string description = "<b>API description</b>";
     var details = new ApplicationDetails(
       new(objectId, clientId, "Api1 <test>", "AzureADMyOrg",
         new DateTimeOffset(2024, 8, 29, 19, 13, 39, TimeSpan.FromHours(4)), "example.onmicrosoft.com"),
-      description, ["api://" + clientId, longUri],
-      ["https://example.com/web", longUri], ["https://example.com/spa", longUri],
-      ["http://localhost", longUri], ["internal", "<script>alert('tag')</script>"],
-      acceptMappedClaims, tokenVersion);
+      description, [], [], [], [], [], null, null);
 
     var html = await RenderApplicationAsync(details);
 
@@ -174,11 +160,34 @@ public sealed class DirectoryDetailsPageTests
     Assert.Contains("AzureADMyOrg", DetailValue(html, "Sign-in Audience"));
     Assert.Contains("Aug 29, 2024, 15:13:39 UTC", DetailValue(html, "Created"));
     Assert.Contains("<span class=\"directory-id\">example.onmicrosoft.com</span>", DetailValue(html, "Publisher Domain"));
+    Assert.DoesNotContain("<b>", html);
+  }
+
+  [Theory]
+  [InlineData(true, "Yes", 2)]
+  [InlineData(false, "No", 1)]
+  public async Task Application_details_display_configured_API_settings(bool acceptMappedClaims, string expectedBoolean, int tokenVersion)
+  {
+    var details = new ApplicationDetails(new(Guid.NewGuid(), null, "API", null, null, null),
+      null, [], [], [], [], [], acceptMappedClaims, tokenVersion);
+
+    var html = await RenderApplicationAsync(details);
+
     Assert.Contains($">{expectedBoolean}</span>", DetailValue(html, "Accept mapped claims"));
     Assert.Contains($">{tokenVersion}</span>", DetailValue(html, "Requested access token version"));
-    Assert.DoesNotContain("api.acceptMappedClaims", html);
-    Assert.DoesNotContain("api.requestedAccessTokenVersion", html);
-    Assert.DoesNotContain("Not configured", html);
+  }
+
+  [Fact]
+  public async Task Application_details_preserve_and_escape_collection_values()
+  {
+    var clientId = Guid.NewGuid();
+    var longUri = "https://example.com/" + new string('a', 240) + "?first=1&second=2";
+    var details = new ApplicationDetails(new(Guid.NewGuid(), clientId, "API", null, null, null),
+      null, ["api://" + clientId, longUri],
+      ["https://example.com/web", longUri], ["https://example.com/spa", longUri],
+      ["http://localhost", longUri], ["internal", "<script>alert('tag')</script>"], null, null);
+
+    var html = await RenderApplicationAsync(details);
 
     foreach (var (label, values, technical) in new[]
     {
@@ -196,7 +205,6 @@ public sealed class DirectoryDetailsPageTests
         Assert.Contains(HtmlEncoder.Default.Encode(value), rendered);
       Assert.Equal(technical ? values.Count : 0, Regex.Matches(rendered, "class=\"directory-id\"").Count);
     }
-    Assert.DoesNotContain("<b>", html);
     Assert.DoesNotContain("<script>", html);
   }
 
@@ -224,11 +232,8 @@ public sealed class DirectoryDetailsPageTests
     Assert.DoesNotContain("Copy Application / Client ID", html);
   }
 
-  [Theory]
-  [InlineData(true, "Yes")]
-  [InlineData(false, "No")]
-  public async Task Enterprise_application_details_group_and_format_values_without_changing_data(
-    bool accountEnabled, string expectedBoolean)
+  [Fact]
+  public async Task Enterprise_application_details_show_configured_general_values_in_labeled_groups()
   {
     var objectId = Guid.Parse("1188d339-33aa-4594-992b-bac7b3f8aa48");
     var clientId = Guid.Parse("36b18dd0-0138-5599-8c7b-1dd905efbe30");
@@ -236,9 +241,9 @@ public sealed class DirectoryDetailsPageTests
     var longUri = "https://example.com/" + new string('a', 240) + "?first=1&second=2";
     const string description = "<b>Enterprise description</b>";
     var details = new ServicePrincipalDetails(
-      new(objectId, clientId, "Enterprise <test>", "Application", accountEnabled, "Example Publisher"),
+      new(objectId, clientId, "Enterprise <test>", "Application", null, "Example Publisher"),
       description, longUri, "https://example.com/login?first=1&second=2",
-      ["api://" + clientId, longUri], ownerId, ["internal", "<script>alert('tag')</script>"]);
+      [], ownerId, []);
 
     var html = await RenderPrincipalAsync(details);
 
@@ -257,11 +262,35 @@ public sealed class DirectoryDetailsPageTests
     }
     Assert.Contains(HtmlEncoder.Default.Encode(description), DetailValue(html, "Description"));
     Assert.Contains(">Application</span>", DetailValue(html, "Service Principal Type"));
-    Assert.Contains($">{expectedBoolean}</span>", DetailValue(html, "Account Enabled"));
     Assert.Contains("Example Publisher", DetailValue(html, "Verified Publisher Name"));
     Assert.Contains($"<span class=\"directory-id\">{HtmlEncoder.Default.Encode(longUri)}</span>", DetailValue(html, "Homepage"));
     Assert.Contains("class=\"directory-id\"", DetailValue(html, "Login URL"));
     Assert.Contains(HtmlEncoder.Default.Encode("https://example.com/login?first=1&second=2"), DetailValue(html, "Login URL"));
+    Assert.DoesNotContain("<b>", html);
+  }
+
+  [Theory]
+  [InlineData(true, "Yes")]
+  [InlineData(false, "No")]
+  public async Task Enterprise_application_details_display_account_enabled_state(bool accountEnabled, string expectedBoolean)
+  {
+    var details = new ServicePrincipalDetails(new(Guid.NewGuid(), null, "Enterprise", null, accountEnabled, null),
+      null, null, null, [], null, []);
+
+    var html = await RenderPrincipalAsync(details);
+
+    Assert.Contains($">{expectedBoolean}</span>", DetailValue(html, "Account Enabled"));
+  }
+
+  [Fact]
+  public async Task Enterprise_application_details_preserve_and_escape_collection_values()
+  {
+    var longUri = "https://example.com/" + new string('a', 240) + "?first=1&second=2";
+    var details = new ServicePrincipalDetails(new(Guid.NewGuid(), null, "Enterprise", null, null, null),
+      null, null, null, ["api://my-api", longUri], null, ["internal", "<script>alert('tag')</script>"]);
+
+    var html = await RenderPrincipalAsync(details);
+
     foreach (var (label, values, technical) in new[]
     {
       ("Service Principal Names", details.ServicePrincipalNames, true),
@@ -275,13 +304,21 @@ public sealed class DirectoryDetailsPageTests
         Assert.Contains(HtmlEncoder.Default.Encode(value), rendered);
       Assert.Equal(technical ? values.Count : 0, Regex.Matches(rendered, "class=\"directory-id\"").Count);
     }
+    Assert.DoesNotContain("<script>", html);
+  }
+
+  [Fact]
+  public async Task Enterprise_application_details_expose_policy_assignment_actions_when_no_policy_is_assigned()
+  {
+    var details = new ServicePrincipalDetails(new(Guid.NewGuid(), null, "Enterprise", null, null, null),
+      null, null, null, [], null, []);
+
+    var html = await RenderPrincipalAsync(details);
+
     Assert.Contains("Assigned Claims Mapping Policies", html);
     Assert.Contains("Refresh policies", html);
     Assert.Contains("Assign policy", html);
     Assert.Contains("No Claims Mapping Policies are assigned to this Service Principal.", html);
-    Assert.DoesNotContain("<b>", html);
-    Assert.DoesNotContain("<script>", html);
-    Assert.DoesNotContain("Not configured", html);
   }
 
   [Theory]

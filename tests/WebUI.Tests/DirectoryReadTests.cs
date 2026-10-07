@@ -66,8 +66,35 @@ public sealed class DirectoryReadTests
     var result = await harness.Applications.GetByObjectIdAsync(ObjectId, TestContext.Current.CancellationToken);
     Assert.True(result.IsSuccess);
     Assert.Equal(expected, result.Value.AcceptMappedClaims);
+  }
+
+  [Fact]
+  public async Task Missing_token_version_remains_unconfigured_when_other_API_settings_exist()
+  {
+    using var harness = new Harness((_, _) => Task.FromResult(Json(JsonSerializer.Serialize(new
+    {
+      id = ObjectId, api = new { acceptMappedClaims = false }
+    }))));
+
+    var result = await harness.Applications.GetByObjectIdAsync(ObjectId, TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
+    Assert.Null(result.Value.RequestedAccessTokenVersion);
+  }
+
+  [Fact]
+  public async Task Missing_application_settings_remain_unconfigured_and_redirects_are_empty()
+  {
+    using var harness = new Harness((_, _) => Task.FromResult(Json(JsonSerializer.Serialize(new { id = ObjectId }))));
+
+    var result = await harness.Applications.GetByObjectIdAsync(ObjectId, TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
+    Assert.Null(result.Value.AcceptMappedClaims);
     Assert.Null(result.Value.RequestedAccessTokenVersion);
     Assert.Empty(result.Value.WebRedirectUris);
+    Assert.Empty(result.Value.SpaRedirectUris);
+    Assert.Empty(result.Value.PublicClientRedirectUris);
   }
 
   [Fact]
@@ -171,36 +198,62 @@ public sealed class DirectoryReadTests
   [Theory]
   [InlineData(true)]
   [InlineData(false)]
-  public async Task Paging_follows_SDK_next_link_and_rejects_it_after_tenant_switch(bool application)
+  public async Task Search_returns_results_from_the_requested_page_and_preserves_the_opaque_next_link(bool application)
   {
     var collection = application ? "applications" : "servicePrincipals";
     var nextUrl = $"https://graph.microsoft.com/v1.0/{collection}?$skiptoken=opaque%2Btoken";
-    var calls = 0;
+    var secondObjectId = Guid.NewGuid();
     using var harness = new Harness((request, _) =>
     {
-      calls++;
-      if (calls == 1)
+      if (!request.RequestUri!.Query.Contains("skiptoken"))
         return Task.FromResult(Json(JsonSerializer.Serialize(new Dictionary<string, object>
         {
-          ["value"] = Array.Empty<object>(),
+          ["value"] = new[] { JsonSerializer.Deserialize<JsonElement>(ObjectJson) },
           ["@odata.nextLink"] = nextUrl
         })));
       Assert.Equal(nextUrl, request.RequestUri?.AbsoluteUri);
       Assert.Contains("eventual", request.Headers.GetValues("ConsistencyLevel"));
-      return Task.FromResult(Json("{\"value\":[]}"));
+      return Task.FromResult(Json("{\"value\":[" + ObjectJson.Replace(ObjectId.ToString(), secondObjectId.ToString()) + "]}"));
+    });
+
+    var first = await harness.SearchAsync(application);
+    Assert.True(first.IsSuccess);
+    Assert.NotNull(first.Value.NextPage);
+    var second = await harness.SearchAsync(application, next: first.Value.NextPage);
+
+    Assert.True(second.IsSuccess);
+    Assert.Equal(new[] { ObjectId, secondObjectId }, first.Value.Items.Concat(second.Value.Items));
+    Assert.Null(second.Value.NextPage);
+  }
+
+  [Theory]
+  [InlineData(true)]
+  [InlineData(false)]
+  public async Task Search_rejects_a_previous_tenant_continuation_even_after_switching_back(bool application)
+  {
+    var collection = application ? "applications" : "servicePrincipals";
+    var requests = new List<HttpRequestMessage>();
+    using var harness = new Harness((request, _) =>
+    {
+      requests.Add(request);
+      return Task.FromResult(Json(JsonSerializer.Serialize(new Dictionary<string, object>
+      {
+        ["value"] = Array.Empty<object>(),
+        ["@odata.nextLink"] = $"https://graph.microsoft.com/v1.0/{collection}?$skiptoken=next"
+      })));
     });
     var first = await harness.SearchAsync(application);
     Assert.True(first.IsSuccess);
-    Assert.NotNull(first.Value);
-    var second = await harness.SearchAsync(application, next: first.Value);
-    Assert.True(second.IsSuccess);
-    Assert.Null(second.Value);
+    Assert.NotNull(first.Value.NextPage);
     harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
     harness.Context.Tenants.SelectTenant(harness.Context.TenantA);
-    var stale = await harness.SearchAsync(application, next: first.Value);
+    requests.Clear();
+
+    var stale = await harness.SearchAsync(application, next: first.Value.NextPage);
+
     Assert.True(stale.IsFailure);
     Assert.Equal(GraphOperationErrorType.TenantChanged, stale.Error.Type);
-    Assert.Equal(2, calls);
+    Assert.Empty(requests);
   }
 
   [Theory]
@@ -366,12 +419,14 @@ public sealed class DirectoryReadTests
         new GraphServiceClient(new HttpClient(new Transport(_send)), new AnonymousAuthenticationProvider())));
     }
 
-    public async Task<Result<DirectoryContinuation?, GraphOperationError>> SearchAsync(bool application,
+    public async Task<Result<DirectoryPage<Guid>, GraphOperationError>> SearchAsync(bool application,
       string? search = null, DirectoryContinuation? next = null)
     {
       if (application)
-        return (await Applications.SearchAsync(search, next, TestContext.Current.CancellationToken)).Map(page => page.NextPage);
-      return (await Principals.SearchAsync(search, next, TestContext.Current.CancellationToken)).Map(page => page.NextPage);
+        return (await Applications.SearchAsync(search, next, TestContext.Current.CancellationToken))
+          .Map(page => new DirectoryPage<Guid>(page.Items.Select(item => item.ObjectId).ToArray(), page.NextPage));
+      return (await Principals.SearchAsync(search, next, TestContext.Current.CancellationToken))
+        .Map(page => new DirectoryPage<Guid>(page.Items.Select(item => item.ObjectId).ToArray(), page.NextPage));
     }
 
     public void Dispose() => _operation.Dispose();

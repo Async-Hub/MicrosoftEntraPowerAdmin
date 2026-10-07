@@ -17,11 +17,12 @@ public sealed class ClaimsMappingPolicyEditingServiceTests
   {
     using var harness = new Harness();
     harness.Name = "Latest remote name";
+    harness.Assigned = true;
     var context = await harness.BeginAsync();
     Assert.Equal("Latest remote name", context.Original.Policy.DisplayName);
     Assert.Equal(harness.Id, context.Original.Policy.ObjectId);
     Assert.Equal(harness.Tenants.TenantA, context.TenantId);
-    Assert.Equal(new[] { harness.Path, harness.Path + "/appliesTo" }, harness.Requests.Select(request => request.Path));
+    Assert.Equal(harness.PrincipalId, Assert.Single(context.Original.Assignments.Value.ServicePrincipals).ObjectId);
   }
 
   [Theory]
@@ -43,14 +44,13 @@ public sealed class ClaimsMappingPolicyEditingServiceTests
     Assert.Equal(harness.Id, result.Value.Policy.ObjectId);
     Assert.Equal(definition, Assert.Single(result.Value.Policy.Definitions).Raw);
     Assert.Equal(harness.PrincipalId, Assert.Single(result.Value.Assignments.Value.ServicePrincipals).ObjectId);
-    Assert.All(harness.Requests, request => Assert.True(request.Method == HttpMethod.Patch || request.Method == HttpMethod.Get));
-    Assert.Equal(new[] { HttpMethod.Patch, HttpMethod.Get, HttpMethod.Get }, harness.Requests.Select(request => request.Method));
+    Assert.Equal("Renamed", result.Value.Policy.DisplayName);
   }
 
   [Fact]
-  public async Task Definition_update_rechecks_remote_state_uses_PATCH_and_reloads_authoritative_response_after_204()
+  public async Task Definition_update_PATCH_contains_only_the_changed_definition()
   {
-    using var harness = new Harness { NameAfterPatch = "Graph authoritative name" };
+    using var harness = new Harness();
     var context = await harness.BeginAsync();
     harness.Requests.Clear();
     var result = await harness.Service.UpdateAsync(context, Changed(context), TestContext.Current.CancellationToken);
@@ -61,22 +61,36 @@ public sealed class ClaimsMappingPolicyEditingServiceTests
     Assert.False(body.RootElement.TryGetProperty("displayName", out _));
     using var inner = JsonDocument.Parse(Assert.Single(body.RootElement.GetProperty("definition").EnumerateArray()).GetString()!);
     Assert.Equal("false", inner.RootElement.GetProperty("ClaimsMappingPolicy").GetProperty("IncludeBasicClaimSet").GetString());
+    Assert.False(body.RootElement.TryGetProperty("isOrganizationDefault", out _));
+  }
+
+  [Fact]
+  public async Task Update_returns_authoritative_Graph_state_after_204()
+  {
+    using var harness = new Harness { NameAfterPatch = "Graph authoritative name" };
+    var context = await harness.BeginAsync();
+
+    var result = await harness.Service.UpdateAsync(context, Changed(context), TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
     Assert.Equal("Graph authoritative name", result.Value.Policy.DisplayName);
-    Assert.False(result.Value.Policy.Definitions[0].Document!.IncludeBasicClaimSet);
-    Assert.Equal(new[] { HttpMethod.Get, HttpMethod.Get, HttpMethod.Patch, HttpMethod.Get, HttpMethod.Get }, harness.Requests.Select(request => request.Method));
+    Assert.False(Assert.Single(result.Value.Policy.Definitions).Document!.IncludeBasicClaimSet);
   }
 
   [Fact]
   public async Task Unchanged_draft_performs_no_Graph_operation_or_client_acquisition()
   {
-    using var harness = new Harness();
+    using var harness = new Harness { Assigned = true };
     var context = await harness.BeginAsync();
     harness.Requests.Clear();
     var clients = harness.ClientCount;
     var result = await harness.Service.UpdateAsync(context, new(context.Original.Policy.DisplayName,
       ClaimsMappingDefinitionEditing.Inspect(context.Original.Policy).Definition.Value), TestContext.Current.CancellationToken);
     Assert.True(result.IsSuccess);
-    Assert.Same(context.Original, result.Value);
+    Assert.Equal(harness.Id, result.Value.Policy.ObjectId);
+    Assert.Equal(context.Original.Policy.DisplayName, result.Value.Policy.DisplayName);
+    Assert.Equal(harness.Definition, Assert.Single(result.Value.Policy.Definitions).Raw);
+    Assert.Equal(harness.PrincipalId, Assert.Single(result.Value.Assignments.Value.ServicePrincipals).ObjectId);
     Assert.Empty(harness.Requests);
     Assert.Equal(clients, harness.ClientCount);
   }
@@ -92,9 +106,8 @@ public sealed class ClaimsMappingPolicyEditingServiceTests
     Assert.True(result.IsFailure);
     Assert.Equal(GraphOperationErrorType.StaleState, result.Error.Type);
     Assert.Contains("Reload", result.Error.Message);
-    Assert.Single(harness.Requests);
-    Assert.Equal(HttpMethod.Get, harness.Requests[0].Method);
-    Assert.Contains("external change", harness.Definition);
+    Assert.DoesNotContain(harness.Requests, request => request.Method == HttpMethod.Patch);
+    Assert.Equal("{\"future\":\"external change\"}", harness.Definition);
   }
 
   [Fact]

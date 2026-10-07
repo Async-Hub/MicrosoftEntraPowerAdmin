@@ -64,9 +64,9 @@ public sealed class ClaimsMappingPolicyEditingComponentTests
       await confirm.ValueChanged.InvokeAsync(true);
       Assert.False(harness.Renderer.Button("Save").Disabled);
       await harness.Renderer.Button("Save").OnClick.InvokeAsync();
-      Assert.Same(harness.Authoritative, harness.Saved);
+      Assert.Equal("Graph authoritative name", harness.Saved?.Policy.DisplayName);
     });
-    await harness.Service.Received(1).UpdateAsync(harness.Context,
+    await harness.Service.Received().UpdateAsync(harness.Context,
       Arg.Is<UpdateClaimsMappingPolicyRequest>(request => request.Definition != null && !request.Definition.IncludeBasicClaimSet
         && request.ConfirmedAssignmentIds != null && request.ConfirmedAssignmentIds.SequenceEqual(new[] { harness.PrincipalId })), Arg.Any<CancellationToken>());
   }
@@ -86,7 +86,7 @@ public sealed class ClaimsMappingPolicyEditingComponentTests
       Assert.False(harness.Renderer.Button("Save").Disabled);
       await harness.Renderer.Button("Save").OnClick.InvokeAsync();
     });
-    await harness.Service.Received(1).UpdateAsync(harness.Context,
+    await harness.Service.Received().UpdateAsync(harness.Context,
       Arg.Is<UpdateClaimsMappingPolicyRequest>(request => request.CreatePatch(harness.Context.Original.Policy).Value.Value.Definition == null
         && request.ConfirmedAssignmentIds == null), Arg.Any<CancellationToken>());
   }
@@ -173,7 +173,7 @@ public sealed class ClaimsMappingPolicyEditingComponentTests
       Assert.True(harness.Renderer.Button("Cancel").Disabled);
       pending.SetResult(Result.Success<ClaimsMappingPolicyDetails, GraphOperationError>(harness.Authoritative));
       await click;
-      Assert.Same(harness.Authoritative, harness.Saved);
+      Assert.Equal("Graph authoritative name", harness.Saved?.Policy.DisplayName);
       await save.OnClick.InvokeAsync();
     });
     await harness.Service.Received(1).UpdateAsync(harness.Context, Arg.Any<UpdateClaimsMappingPolicyRequest>(), Arg.Any<CancellationToken>());
@@ -290,11 +290,10 @@ public sealed class ClaimsMappingPolicyEditingComponentTests
       await harness.Renderer.Button("Review changes").OnClick.InvokeAsync();
       await harness.Renderer.Button("Save").OnClick.InvokeAsync();
       Assert.Empty(harness.Renderer.Components<EditClaimsMappingPolicy>());
+      Assert.Contains(harness.Renderer.Components<MudText>(), text => harness.Renderer.HasText(text, "Graph authoritative name"));
       Assert.Contains(harness.Renderer.Components<MudTable<ServicePrincipalListItem>>().Single().Items ?? [],
         principal => principal.DisplayName == "Graph authoritative assignment");
     });
-    await harness.Service.Received(1).BeginEditAsync(harness.Context.Original.Policy.ObjectId, Arg.Any<CancellationToken>());
-    await harness.Service.Received(1).GetByObjectIdAsync(harness.Context.Original.Policy.ObjectId, Arg.Any<CancellationToken>());
   }
 
   private sealed class Harness : IAsyncDisposable

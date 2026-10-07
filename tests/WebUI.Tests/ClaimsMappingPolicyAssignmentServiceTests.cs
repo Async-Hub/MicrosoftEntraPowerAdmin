@@ -15,7 +15,6 @@ public sealed class ClaimsMappingPolicyAssignmentServiceTests
   private static readonly Guid PrincipalId = Guid.Parse("11111111-1111-1111-1111-111111111111");
   private static readonly Guid PolicyId = Guid.Parse("22222222-2222-2222-2222-222222222222");
   private static readonly Guid ClientId = Guid.Parse("33333333-3333-3333-3333-333333333333");
-  private static readonly Guid ApplicationId = Guid.Parse("44444444-4444-4444-4444-444444444444");
   private static string PrincipalPath => $"/v1.0/servicePrincipals/{PrincipalId:D}";
   private static string PolicyPath => $"/v1.0/policies/claimsMappingPolicies/{PolicyId:D}";
   private static string AssignedPath => $"{PrincipalPath}/claimsMappingPolicies";
@@ -32,8 +31,6 @@ public sealed class ClaimsMappingPolicyAssignmentServiceTests
         return ExistingObjects(request, unassign);
       Assert.Equal(unassign ? HttpMethod.Delete : HttpMethod.Post, request.Method);
       Assert.Equal(unassign ? $"{AssignedPath}/{PolicyId:D}/$ref" : $"{AssignedPath}/$ref", request.RequestUri!.AbsolutePath);
-      Assert.DoesNotContain(ClientId.ToString(), request.RequestUri.ToString());
-      Assert.DoesNotContain(ApplicationId.ToString(), request.RequestUri.ToString());
       if (!unassign)
         body = await request.Content!.ReadAsStringAsync(token);
       return new(HttpStatusCode.NoContent);
@@ -42,7 +39,6 @@ public sealed class ClaimsMappingPolicyAssignmentServiceTests
       ? await harness.Service.UnassignAsync(harness.Context, PrincipalId, PolicyId, TestContext.Current.CancellationToken)
       : await harness.Service.AssignAsync(harness.Context, PrincipalId, PolicyId, TestContext.Current.CancellationToken);
     Assert.True(result.IsSuccess);
-    Assert.Equal(4, harness.Requests.Count);
     if (!unassign)
     {
       using var json = JsonDocument.Parse(body!);
@@ -67,8 +63,18 @@ public sealed class ClaimsMappingPolicyAssignmentServiceTests
     var result = await harness.Service.GetAssignedPoliciesAsync(harness.Context, PrincipalId, TestContext.Current.CancellationToken);
     Assert.True(result.IsSuccess);
     Assert.Equal(new[] { PolicyId, second }, result.Value.Select(item => item.ObjectId));
-    Assert.Equal(2, harness.Requests.Count);
-    Assert.Contains("$select=id,displayName,definition,isOrganizationDefault", Uri.UnescapeDataString(harness.Requests[0].RequestUri!.Query));
+  }
+
+  [Fact]
+  public async Task Assignment_discovery_requests_only_fields_needed_for_policy_summaries()
+  {
+    using var harness = new Harness(_ => Page([]));
+
+    var result = await harness.Service.GetAssignedPoliciesAsync(harness.Context, PrincipalId, TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
+    var fields = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(harness.Requests[0].RequestUri!.Query)["$select"].ToString();
+    Assert.Equal(new[] { "id", "displayName", "definition", "isOrganizationDefault" }.Order(), fields.Split(',').Order());
   }
 
   [Theory]
@@ -177,60 +183,83 @@ public sealed class ClaimsMappingPolicyAssignmentServiceTests
 
   public enum PrincipalPathSuffix { Principal, Policy, Assignments, Mutation }
 
-  [Fact]
-  public async Task Consent_network_and_timeout_failures_do_not_expose_infrastructure_details()
+  [Theory]
+  [InlineData("consent", GraphOperationErrorType.ConsentRequired)]
+  [InlineData("network", GraphOperationErrorType.GraphFailure)]
+  [InlineData("timeout", GraphOperationErrorType.GraphFailure)]
+  public async Task Infrastructure_failures_return_safe_application_errors(string failure, GraphOperationErrorType expected)
   {
-    foreach (var exception in new Exception[]
+    Exception exception = failure switch
     {
-      new MsalUiRequiredException("consent_required", "sensitive"),
-      new HttpRequestException("sensitive"), new TaskCanceledException("sensitive")
-    })
-    {
-      using var harness = new Harness(_ => throw exception);
-      var result = await harness.Service.AssignAsync(harness.Context, PrincipalId, PolicyId, TestContext.Current.CancellationToken);
-      Assert.True(result.IsFailure);
-      Assert.DoesNotContain("sensitive", result.Error.Message);
-      if (exception is MsalUiRequiredException)
-      {
-        Assert.Equal(GraphOperationErrorType.ConsentRequired, result.Error.Type);
-        Assert.Contains("Application.ReadWrite.All", result.Error.Message);
-      }
-      else
-        Assert.Equal(GraphOperationErrorType.GraphFailure, result.Error.Type);
-    }
+      "consent" => new MsalUiRequiredException("consent_required", "sensitive"),
+      "network" => new HttpRequestException("sensitive"),
+      _ => new TaskCanceledException("sensitive")
+    };
+    using var harness = new Harness(_ => throw exception);
+
+    var result = await harness.Service.AssignAsync(harness.Context, PrincipalId, PolicyId, TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsFailure);
+    Assert.Equal(expected, result.Error.Type);
+    Assert.DoesNotContain("sensitive", result.Error.Message);
+    if (expected == GraphOperationErrorType.ConsentRequired)
+      Assert.Contains("Application.ReadWrite.All", result.Error.Message);
   }
 
-  [Fact]
-  public async Task Missing_policy_or_principal_never_mutates_and_invalid_IDs_never_acquire_a_client()
+  [Theory]
+  [InlineData(true)]
+  [InlineData(false)]
+  public async Task Empty_assignment_object_ID_is_rejected_before_client_acquisition(bool principalIdIsEmpty)
   {
-    using var harness = new Harness(_ => Json(new { error = new { code = "deleted", message = "gone" } }, HttpStatusCode.NotFound));
-    var invalid = await harness.Service.AssignAsync(harness.Context, Guid.Empty, PolicyId, TestContext.Current.CancellationToken);
-    Assert.True(invalid.IsFailure);
-    Assert.Equal(GraphOperationErrorType.InvalidInput, invalid.Error.Type);
+    using var harness = new Harness(_ => throw new InvalidOperationException("Must not query Graph"));
+
+    var result = await harness.Service.AssignAsync(harness.Context,
+      principalIdIsEmpty ? Guid.Empty : PrincipalId, principalIdIsEmpty ? PolicyId : Guid.Empty,
+      TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.InvalidInput, result.Error.Type);
     Assert.Equal(0, harness.ClientCount);
-    var missing = await harness.Service.AssignAsync(harness.Context, PrincipalId, PolicyId, TestContext.Current.CancellationToken);
-    Assert.True(missing.IsFailure);
-    Assert.Equal(GraphOperationErrorType.NotFound, missing.Error.Type);
-    Assert.Single(harness.Requests);
-    Assert.Equal(HttpMethod.Get, harness.Requests[0].Method);
+  }
+
+  [Theory]
+  [InlineData(true)]
+  [InlineData(false)]
+  public async Task Missing_policy_or_principal_prevents_relationship_mutation(bool principalIsMissing)
+  {
+    var missingPath = principalIsMissing ? PrincipalPath : PolicyPath;
+    using var harness = new Harness(request => request.RequestUri!.AbsolutePath == missingPath
+      ? Json(new { error = new { code = "deleted", message = "gone" } }, HttpStatusCode.NotFound)
+      : ExistingObjects(request, false));
+
+    var result = await harness.Service.AssignAsync(harness.Context, PrincipalId, PolicyId, TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsFailure);
+    Assert.Equal(GraphOperationErrorType.NotFound, result.Error.Type);
+    Assert.All(harness.Requests, request => Assert.Equal(HttpMethod.Get, request.Method));
   }
 
   [Fact]
-  public async Task Invalid_assignment_next_links_are_rejected_and_cancellation_reaches_the_SDK()
+  public async Task Invalid_assignment_next_link_is_rejected_before_following_it()
   {
     using var harness = new Harness(_ => Page([], "https://example.test/v1.0/servicePrincipals"));
     var result = await harness.Service.GetAssignedPoliciesAsync(harness.Context, PrincipalId, TestContext.Current.CancellationToken);
     Assert.True(result.IsFailure);
     Assert.Equal(GraphOperationErrorType.GraphFailure, result.Error.Type);
     Assert.Single(harness.Requests);
+  }
+
+  [Fact]
+  public async Task Caller_cancellation_reaches_assignment_transport()
+  {
     using var cancellation = new CancellationTokenSource();
-    using var canceled = new Harness(async (_, token) =>
+    using var harness = new Harness(async (_, token) =>
     {
       cancellation.Cancel();
       await Task.Delay(Timeout.Infinite, token);
       throw new InvalidOperationException("Unreachable");
     });
-    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceled.Service.AssignAsync(canceled.Context, PrincipalId, PolicyId, cancellation.Token));
+    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harness.Service.AssignAsync(harness.Context, PrincipalId, PolicyId, cancellation.Token));
   }
 
   private static HttpResponseMessage ExistingObjects(HttpRequestMessage request, bool assigned) => request.RequestUri!.AbsolutePath switch

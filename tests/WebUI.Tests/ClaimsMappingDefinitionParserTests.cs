@@ -17,10 +17,9 @@ public sealed class ClaimsMappingDefinitionParserTests
     """;
 
   [Fact]
-  public void Parses_known_fields_and_preserves_the_complete_original_document()
+  public void Parses_known_policy_claim_and_transformation_fields()
   {
     var result = ClaimsMappingDefinitionParser.Parse(Definition);
-    Assert.Equal(Definition, result.Raw);
     Assert.Empty(result.Warnings);
     var document = Assert.IsType<ClaimsMappingDocument>(result.Document);
     Assert.Equal(1, document.Version);
@@ -34,11 +33,17 @@ public sealed class ClaimsMappingDefinitionParserTests
     Assert.Equal("department", Assert.Single(transformation.InputClaims!).ClaimTypeReferenceId);
     Assert.Equal(".", Assert.Single(transformation.InputParameters!).Value);
     Assert.Equal("outputClaim", Assert.Single(transformation.OutputClaims!).TransformationClaimType);
+  }
+
+  [Fact]
+  public void Original_and_formatted_definition_preserve_unknown_properties()
+  {
+    var result = ClaimsMappingDefinitionParser.Parse(Definition);
+
+    Assert.Equal(Definition, result.Raw);
     using var original = JsonDocument.Parse(Definition);
     using var formatted = JsonDocument.Parse(result.Formatted);
     Assert.True(JsonElement.DeepEquals(original.RootElement, formatted.RootElement));
-    Assert.Contains("FutureField", result.Formatted);
-    Assert.Contains("FutureRoot", result.Formatted);
   }
 
   [Theory]
@@ -84,25 +89,34 @@ public sealed class ClaimsMappingDefinitionParserTests
   [InlineData("true", true)]
   [InlineData("false", false)]
   [InlineData("\"false\"", false)]
-  public void Supports_Boolean_and_string_Boolean_and_plural_transformations(string jsonBoolean, bool expected)
+  public void Include_basic_claim_set_accepts_Boolean_and_string_Boolean_values(string jsonBoolean, bool expected)
   {
     var result = ClaimsMappingDefinitionParser.Parse(
-      "{\"ClaimsMappingPolicy\":{\"IncludeBasicClaimSet\":" + jsonBoolean + ",\"ClaimsTransformations\":[]}}");
+      "{\"ClaimsMappingPolicy\":{\"IncludeBasicClaimSet\":" + jsonBoolean + "}}");
     Assert.Equal(expected, result.Document?.IncludeBasicClaimSet);
-    Assert.Empty(result.Document!.ClaimsTransformation!);
-    Assert.Null(result.Document.ClaimsSchema);
   }
 
-  [Fact]
-  public void Summary_does_not_present_partial_definition_totals_as_complete()
+  [Theory]
+  [InlineData("ClaimsTransformation")]
+  [InlineData("ClaimsTransformations")]
+  public void Singular_and_plural_transformation_names_preserve_an_explicit_empty_collection(string property)
+  {
+    var result = ClaimsMappingDefinitionParser.Parse("{\"ClaimsMappingPolicy\":{\"" + property + "\":[]}}");
+
+    var document = Assert.IsType<ClaimsMappingDocument>(result.Document);
+    Assert.Empty(document.ClaimsTransformation!);
+    Assert.Null(document.ClaimsSchema);
+  }
+
+  [Theory]
+  [InlineData("broken")]
+  [InlineData(null)]
+  public void Summary_does_not_report_totals_for_partial_or_missing_definitions(string? raw)
   {
     var policy = new ClaimsMappingPolicyListItem(Guid.NewGuid(), "Policy", null,
-      [ClaimsMappingDefinitionParser.Parse(Definition), ClaimsMappingDefinitionParser.Parse("broken")]);
-    Assert.True(policy.HasDefinition);
+      raw is null ? [] : [ClaimsMappingDefinitionParser.Parse(Definition), ClaimsMappingDefinitionParser.Parse(raw)]);
+
     Assert.Null(policy.ClaimsSchemaCount);
     Assert.Null(policy.ClaimsTransformationCount);
-    var empty = policy with { Definitions = [] };
-    Assert.False(empty.HasDefinition);
-    Assert.Null(empty.ClaimsSchemaCount);
   }
 }

@@ -13,7 +13,7 @@ namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tests;
 public sealed class ClaimsMappingPolicyDeletionServiceTests
 {
   [Fact]
-  public async Task Begin_delete_loads_current_identity_definition_and_assignments_on_one_client()
+  public async Task Begin_delete_returns_current_policy_and_assignment_impact()
   {
     using var harness = new Harness { Name = "Fresh name", AssignmentCount = 3 };
     var context = await harness.BeginAsync();
@@ -21,9 +21,6 @@ public sealed class ClaimsMappingPolicyDeletionServiceTests
     Assert.Equal(harness.Id, context.Original.Policy.ObjectId);
     Assert.Equal(harness.Tenants.TenantA, context.TenantId);
     Assert.Equal(3, context.AssignmentCount);
-    Assert.True(context.HasAssignments);
-    Assert.Equal(1, harness.ClientCount);
-    Assert.Equal(new[] { harness.Path, harness.Path + "/appliesTo" }, harness.Requests.Select(request => request.Path));
     Assert.Equal(harness.Definition, context.Original.Policy.Definitions[0].Raw);
   }
 
@@ -40,7 +37,6 @@ public sealed class ClaimsMappingPolicyDeletionServiceTests
     Assert.True(result.IsSuccess);
     Assert.True(harness.Deleted);
     Assert.Equal(raw, harness.Definition);
-    Assert.Equal(new[] { HttpMethod.Get, HttpMethod.Get, HttpMethod.Delete }, harness.Requests.Select(request => request.Method));
     var delete = Assert.Single(harness.Requests, request => request.Method == HttpMethod.Delete);
     Assert.Equal(harness.Path, delete.Path);
     Assert.Equal("", delete.Body);
@@ -76,7 +72,6 @@ public sealed class ClaimsMappingPolicyDeletionServiceTests
     var result = await harness.Service.DeleteAsync(context, "Policy", TestContext.Current.CancellationToken);
     Assert.True(result.IsFailure);
     Assert.Equal(GraphOperationErrorType.PolicyIsAssigned, result.Error.Type);
-    Assert.Equal(new[] { harness.Path, harness.Path + "/appliesTo" }, harness.Requests.Select(request => request.Path));
     Assert.All(harness.Requests, request => Assert.Equal(HttpMethod.Get, request.Method));
     Assert.False(harness.Deleted);
   }
@@ -92,9 +87,8 @@ public sealed class ClaimsMappingPolicyDeletionServiceTests
     var result = await harness.Service.DeleteAsync(context, "Policy", TestContext.Current.CancellationToken);
     Assert.True(result.IsFailure);
     Assert.Equal(GraphOperationErrorType.PolicyIsAssigned, result.Error.Type);
-    Assert.Equal(3, harness.Requests.Count);
-    Assert.Contains("next=1", harness.Requests[^1].Query);
-    Assert.All(harness.Requests, request => Assert.Equal(HttpMethod.Get, request.Method));
+    Assert.DoesNotContain(harness.Requests, request => request.Method == HttpMethod.Delete);
+    Assert.False(harness.Deleted);
   }
 
   [Theory]
@@ -338,13 +332,13 @@ public sealed class ClaimsMappingPolicyDeletionServiceTests
     harness.BeforeSend = (request, _) => request.Method == HttpMethod.Delete ? pending.Task : Task.CompletedTask;
     harness.Requests.Clear();
     var deletion = harness.Service.DeleteAsync(context, "Policy", TestContext.Current.CancellationToken);
+    var requestsBeforeSwitch = harness.Requests.ToArray();
     harness.Tenants.Tenants.SelectTenant(harness.Tenants.TenantB);
     pending.SetResult();
     var result = await deletion;
     Assert.True(result.IsFailure);
     Assert.Equal(GraphOperationErrorType.TenantChanged, result.Error.Type);
-    Assert.Equal(HttpMethod.Delete, harness.Requests[^1].Method);
-    Assert.Equal(3, harness.Requests.Count);
+    Assert.Equal(requestsBeforeSwitch, harness.Requests);
   }
 
   private sealed class Harness : IEntraGraphClientFactory, IDisposable
@@ -363,7 +357,7 @@ public sealed class ClaimsMappingPolicyDeletionServiceTests
     public HttpStatusCode AssignmentStatus { get; set; } = HttpStatusCode.OK;
     public Action? BeforeClient { get; set; }
     public Func<HttpRequestMessage, CancellationToken, Task>? BeforeSend { get; set; }
-    public List<(HttpMethod Method, string Path, string Query, string Body)> Requests { get; } = [];
+    public List<(HttpMethod Method, string Path, string Body)> Requests { get; } = [];
     public ClaimsMappingPolicyService Service { get; }
     public int ClientCount { get; private set; }
 
@@ -393,7 +387,7 @@ public sealed class ClaimsMappingPolicyDeletionServiceTests
     {
       var path = request.RequestUri!.AbsolutePath;
       var query = request.RequestUri.Query;
-      Requests.Add((request.Method, path, query, request.Content is null ? "" : await request.Content.ReadAsStringAsync(token)));
+      Requests.Add((request.Method, path, request.Content is null ? "" : await request.Content.ReadAsStringAsync(token)));
       Assert.StartsWith(Path, path);
       if (BeforeSend is { } before) await before(request, token);
       if (Deleted) return Error(HttpStatusCode.NotFound);

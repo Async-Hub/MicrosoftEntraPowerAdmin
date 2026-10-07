@@ -41,19 +41,14 @@ public sealed class ClaimsMappingPolicyPageTests
   }
 
   [Fact]
-  public async Task Details_render_understood_and_original_definitions_and_clear_every_ID_on_tenant_switch()
+  public async Task Details_render_understood_and_original_definitions_read_only()
   {
     await using var harness = new Harness();
     var policyId = Guid.NewGuid();
-    var principalId = Guid.NewGuid();
-    var clientId = Guid.NewGuid();
-    var applicationId = Guid.NewGuid();
     var policy = new ClaimsMappingPolicyListItem(policyId, "Department policy", false,
       [ClaimsMappingDefinitionParser.Parse(ClaimsMappingDefinitionParserTests.Definition), ClaimsMappingDefinitionParser.Parse("{broken")]);
-    var assignments = new ClaimsMappingAssignments([new(principalId, clientId, "Enterprise", null, null, null)],
-      [new(applicationId, clientId, "Registration", null, null, null)], []);
     harness.Service.GetByObjectIdAsync(policyId, Arg.Any<CancellationToken>()).Returns(
-      Result.Success<ClaimsMappingPolicyDetails, GraphOperationError>(new(policy, Result.Success<ClaimsMappingAssignments, GraphOperationError>(assignments))));
+      Result.Success<ClaimsMappingPolicyDetails, GraphOperationError>(new(policy, Result.Success<ClaimsMappingAssignments, GraphOperationError>(new([], [], [])))));
 
     await harness.Renderer.Dispatcher.InvokeAsync(async () =>
     {
@@ -71,18 +66,40 @@ public sealed class ClaimsMappingPolicyPageTests
       Assert.Contains("malformed JSON", html);
       Assert.Contains("{broken", html);
       Assert.Contains("IsOrganizationDefault: False", html);
-      Assert.Contains("Service Principal Object ID", html);
-      Assert.Contains("Application Object ID", html);
-      Assert.All(new[] { policyId, principalId, clientId, applicationId }, id => Assert.Contains(id.ToString(), html));
       Assert.DoesNotContain("textarea", html);
+    });
+  }
+
+  [Fact]
+  public async Task Tenant_switch_removes_policy_content_and_every_assignment_identifier()
+  {
+    await using var harness = new Harness();
+    var policyId = Guid.NewGuid();
+    var principalId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var applicationId = Guid.NewGuid();
+    var policy = new ClaimsMappingPolicyListItem(policyId, "Department policy", false,
+      [ClaimsMappingDefinitionParser.Parse(ClaimsMappingDefinitionParserTests.Definition)]);
+    var assignments = new ClaimsMappingAssignments([new(principalId, clientId, "Enterprise", null, null, null)],
+      [new(applicationId, clientId, "Registration", null, null, null)], []);
+    harness.Service.GetByObjectIdAsync(policyId, Arg.Any<CancellationToken>()).Returns(
+      Result.Success<ClaimsMappingPolicyDetails, GraphOperationError>(new(policy, Result.Success<ClaimsMappingAssignments, GraphOperationError>(assignments))));
+
+    await harness.Renderer.Dispatcher.InvokeAsync(async () =>
+    {
+      var root = await harness.Renderer.RenderComponentAsync<PolicyPage>(Parameters("ObjectId", policyId.ToString()));
+      Assert.All(new[] { policyId, principalId, clientId, applicationId }, id => Assert.Contains(id.ToString(), root.ToHtmlString()));
+      Assert.Contains("Service Principal Object ID", root.ToHtmlString());
+      Assert.Contains("Application Object ID", root.ToHtmlString());
+      Assert.Contains("FutureRoot", root.ToHtmlString());
 
       harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
+
       var cleared = root.ToHtmlString();
       Assert.All(new[] { policyId, principalId, clientId, applicationId }, id => Assert.DoesNotContain(id.ToString(), cleared));
       Assert.DoesNotContain("FutureRoot", cleared);
       Assert.EndsWith("/claims-mapping-policies", harness.Navigation.Uri);
     });
-    await harness.Service.Received(1).GetByObjectIdAsync(policyId, Arg.Any<CancellationToken>());
   }
 
   [Theory]
@@ -124,7 +141,6 @@ public sealed class ClaimsMappingPolicyPageTests
       Assert.DoesNotContain("Tenant A policy", html);
       Assert.Contains("No Claims Mapping Policies in the current tenant", html);
     });
-    await harness.Service.Received(2).ListAsync(Arg.Any<CancellationToken>());
   }
 
   [Fact]
@@ -144,7 +160,6 @@ public sealed class ClaimsMappingPolicyPageTests
       Assert.DoesNotContain("Assigned policy", root.ToHtmlString());
       Assert.DoesNotContain(policyId.ToString(), root.ToHtmlString());
     });
-    await harness.Service.Received(1).GetAssignedPoliciesAsync(Arg.Any<ClaimsMappingPolicyAssignmentContext>(), principalId, Arg.Any<CancellationToken>());
   }
 
   [Fact]

@@ -23,16 +23,14 @@ public sealed class EntraGraphClientFactoryTests
   }
 
   [Fact]
-  public async Task Switching_tenants_creates_distinct_clients_and_uses_selected_tenant_and_current_user()
+  public async Task Created_client_remains_bound_to_its_original_tenant_after_selection_changes()
   {
-    var calls = new List<(string? Tenant, ClaimsPrincipal? User, string[] Scopes, CancellationToken Cancellation)>();
+    var acquiredForTenants = new List<string?>();
     _tokens.GetAccessTokenForUserAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<string>(), Arg.Any<string>(),
       Arg.Any<string>(), Arg.Any<ClaimsPrincipal>(), Arg.Any<TokenAcquisitionOptions>())
       .Returns(call =>
       {
-        Assert.Equal(OpenIdConnectDefaults.AuthenticationScheme, call.ArgAt<string>(1));
-        calls.Add((call.ArgAt<string>(2), call.ArgAt<ClaimsPrincipal>(4),
-          call.ArgAt<IEnumerable<string>>(0).ToArray(), call.ArgAt<TokenAcquisitionOptions>(5).CancellationToken));
+        acquiredForTenants.Add(call.ArgAt<string>(2));
         return Task.FromResult("offline-test-token");
       });
     var factory = CreateFactory();
@@ -53,15 +51,30 @@ public sealed class EntraGraphClientFactoryTests
     using var secondRequestA = await clientA.RequestAdapter.ConvertToNativeRequestAsync<HttpRequestMessage>(
       clientA.Organization.ToGetRequestInformation(), TestContext.Current.CancellationToken);
 
-    Assert.NotSame(clientA, clientB);
-    Assert.Equal([_context.TenantA.ToString(), _context.TenantB.ToString(), _context.TenantA.ToString()], calls.Select(call => call.Tenant));
-    Assert.All(calls, call =>
-    {
-      Assert.Same(_context.User, call.User);
-      Assert.Equal([GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll, GraphScopes.PolicyReadWriteApplicationConfiguration, GraphScopes.ApplicationReadWriteAll], call.Scopes);
-      Assert.Equal(TestContext.Current.CancellationToken, call.Cancellation);
-    });
-    Assert.Equal("Bearer", requestB?.Headers.Authorization?.Scheme);
+    Assert.Equal([_context.TenantA.ToString(), _context.TenantB.ToString(), _context.TenantA.ToString()], acquiredForTenants);
+  }
+
+  [Fact]
+  public async Task Graph_request_uses_current_user_delegated_scopes_and_caller_cancellation()
+  {
+    _context.Tenants.SelectTenant(_context.TenantA);
+    _tokens.GetAccessTokenForUserAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<string>(), Arg.Any<string>(),
+      Arg.Any<string>(), Arg.Any<ClaimsPrincipal>(), Arg.Any<TokenAcquisitionOptions>()).Returns("offline-test-token");
+    var created = await CreateFactory().CreateAsync(TestContext.Current.CancellationToken);
+    Assert.True(created.IsSuccess);
+    using var client = created.Value;
+    var requiredScopes = new[] { GraphScopes.UserRead, GraphScopes.ApplicationReadAll, GraphScopes.PolicyReadAll,
+      GraphScopes.PolicyReadWriteApplicationConfiguration, GraphScopes.ApplicationReadWriteAll };
+
+    using var request = await client.RequestAdapter.ConvertToNativeRequestAsync<HttpRequestMessage>(
+      client.Organization.ToGetRequestInformation(), TestContext.Current.CancellationToken);
+
+    await _tokens.Received().GetAccessTokenForUserAsync(
+      Arg.Is<IEnumerable<string>>(scopes => scopes.Order().SequenceEqual(requiredScopes.Order())),
+      OpenIdConnectDefaults.AuthenticationScheme, _context.TenantA.ToString(), null, _context.User,
+      Arg.Is<TokenAcquisitionOptions>(options => options.CancellationToken == TestContext.Current.CancellationToken));
+    Assert.Equal("Bearer", request?.Headers.Authorization?.Scheme);
+    Assert.Equal("offline-test-token", request?.Headers.Authorization?.Parameter);
   }
 
   [Fact]

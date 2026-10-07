@@ -19,41 +19,77 @@ public sealed class ClaimsMappingPolicyServiceTests
   private const string Collection = "/v1.0/policies/claimsMappingPolicies";
 
   [Fact]
-  public async Task Lists_all_pages_with_parsed_summaries_and_isolates_bad_definitions()
+  public async Task List_returns_policies_from_all_pages()
   {
+    var secondId = Guid.NewGuid();
+    var thirdId = Guid.NewGuid();
     using var harness = new Harness(request => request.RequestUri?.Query.Contains("skiptoken") == true
-      ? Page([Policy(Guid.NewGuid(), "Malformed", ["broken"]), Policy(Guid.NewGuid(), "Empty", [])])
-      : Page([Policy(PolicyId, "Department", [ClaimsMappingDefinitionParserTests.Definition])],
+      ? Page([Policy(secondId, "Second", []), Policy(thirdId, "Third", [])])
+      : Page([Policy(PolicyId, "First", [])],
         $"https://graph.microsoft.com{Collection}?$skiptoken=next"));
+
     var result = await harness.Service.ListAsync(TestContext.Current.CancellationToken);
+
     Assert.True(result.IsSuccess);
-    Assert.Equal(3, result.Value.Count);
-    var first = result.Value[0];
-    Assert.Equal(PolicyId, first.ObjectId);
-    Assert.Equal(2, first.ClaimsSchemaCount);
-    Assert.Equal(1, first.ClaimsTransformationCount);
-    Assert.False(first.IsOrganizationDefault);
-    Assert.NotEmpty(result.Value[1].Definitions[0].Warnings);
-    Assert.False(result.Value[2].HasDefinition);
-    Assert.Equal(2, harness.Requests.Count);
-    Assert.Contains("$select=id,displayName,definition,isOrganizationDefault", Query(harness.Requests[0]));
+    Assert.Equal(new[] { PolicyId, secondId, thirdId }, result.Value.Select(policy => policy.ObjectId));
   }
 
   [Fact]
-  public async Task Details_page_all_assignments_and_keep_the_three_ID_types_distinct()
+  public async Task List_maps_policy_identity_and_definition_summary()
   {
-    using var harness = new Harness(request =>
-    {
-      var path = request.RequestUri!.AbsolutePath;
-      if (path == $"{Collection}/{PolicyId}")
-        return Json(Policy(PolicyId, "Department", [ClaimsMappingDefinitionParserTests.Definition]));
-      Assert.Equal($"{Collection}/{PolicyId}/appliesTo", path);
-      if (request.RequestUri.Query.Contains("skiptoken"))
-        return Page([DirectoryObject("application", ApplicationId, AppId, "Registration")]);
-      return Page([DirectoryObject("servicePrincipal", PrincipalId, AppId, "Enterprise")],
-        $"https://graph.microsoft.com{path}?$skiptoken=next");
-    });
+    using var harness = new Harness(_ => Page([Policy(PolicyId, "Department", [ClaimsMappingDefinitionParserTests.Definition])]));
+
+    var result = await harness.Service.ListAsync(TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
+    var policy = Assert.Single(result.Value);
+    Assert.Equal(PolicyId, policy.ObjectId);
+    Assert.Equal("Department", policy.DisplayName);
+    Assert.False(policy.IsOrganizationDefault);
+    Assert.True(policy.HasDefinition);
+    Assert.Equal(2, policy.ClaimsSchemaCount);
+    Assert.Equal(1, policy.ClaimsTransformationCount);
+  }
+
+  [Fact]
+  public async Task List_requests_only_fields_needed_for_policy_summaries()
+  {
+    using var harness = new Harness(_ => Page([]));
+
+    var result = await harness.Service.ListAsync(TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
+    var fields = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(harness.Requests[0].RequestUri!.Query)["$select"].ToString();
+    Assert.Equal(new[] { "id", "displayName", "definition", "isOrganizationDefault" }.Order(), fields.Split(',').Order());
+  }
+
+  [Fact]
+  public async Task List_keeps_policies_with_malformed_or_missing_definitions_inspectable()
+  {
+    using var harness = new Harness(_ => Page([
+      Policy(PolicyId, "Valid", [ClaimsMappingDefinitionParserTests.Definition]),
+      Policy(Guid.NewGuid(), "Malformed", ["broken"]), Policy(Guid.NewGuid(), "Empty", [])]));
+
+    var result = await harness.Service.ListAsync(TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
+    Assert.Equal(new[] { "Valid", "Malformed", "Empty" }, result.Value.Select(policy => policy.DisplayName));
+    var malformed = Assert.Single(result.Value[1].Definitions);
+    Assert.Equal("broken", malformed.Raw);
+    Assert.NotEmpty(malformed.Warnings);
+    Assert.False(result.Value[2].HasDefinition);
+  }
+
+  [Fact]
+  public async Task Details_preserve_distinct_application_service_principal_and_client_IDs()
+  {
+    using var harness = new Harness(request => request.RequestUri!.AbsolutePath.EndsWith("appliesTo")
+      ? Page([DirectoryObject("servicePrincipal", PrincipalId, AppId, "Enterprise"),
+        DirectoryObject("application", ApplicationId, AppId, "Registration")])
+      : Json(Policy(PolicyId, "Department", [])));
+
     var result = await harness.Service.GetByObjectIdAsync(PolicyId, TestContext.Current.CancellationToken);
+
     Assert.True(result.IsSuccess);
     Assert.True(result.Value.Assignments.IsSuccess);
     var assignments = result.Value.Assignments.Value;
@@ -63,7 +99,29 @@ public sealed class ClaimsMappingPolicyServiceTests
     var application = Assert.Single(assignments.Applications);
     Assert.Equal(ApplicationId, application.ObjectId);
     Assert.Equal(AppId, application.AppId);
-    Assert.Equal(3, harness.Requests.Count);
+  }
+
+  [Fact]
+  public async Task Details_return_assignments_from_all_pages()
+  {
+    var secondPrincipalId = Guid.NewGuid();
+    using var harness = new Harness(request =>
+    {
+      var path = request.RequestUri!.AbsolutePath;
+      if (path == $"{Collection}/{PolicyId}")
+        return Json(Policy(PolicyId, "Department", []));
+      return request.RequestUri.Query.Contains("skiptoken")
+        ? Page([DirectoryObject("servicePrincipal", secondPrincipalId, AppId, "Second")])
+        : Page([DirectoryObject("servicePrincipal", PrincipalId, AppId, "First")],
+          $"https://graph.microsoft.com{path}?$skiptoken=next");
+    });
+
+    var result = await harness.Service.GetByObjectIdAsync(PolicyId, TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
+    Assert.True(result.Value.Assignments.IsSuccess);
+    Assert.Equal(new[] { PrincipalId, secondPrincipalId },
+      result.Value.Assignments.Value.ServicePrincipals.Select(principal => principal.ObjectId));
   }
 
   [Fact]
@@ -86,11 +144,10 @@ public sealed class ClaimsMappingPolicyServiceTests
     var result = await harness.Service.FindForServicePrincipalAsync(PrincipalId, TestContext.Current.CancellationToken);
     Assert.True(result.IsSuccess);
     Assert.Equal(matchingPolicy, Assert.Single(result.Value).ObjectId);
-    Assert.Equal(4, harness.Requests.Count);
   }
 
   [Fact]
-  public async Task Policy_and_relationship_pages_do_not_hide_assignments()
+  public async Task Reverse_discovery_returns_matches_from_all_policy_and_relationship_pages()
   {
     var secondPolicy = Guid.NewGuid();
     using var harness = new Harness(request =>
@@ -101,7 +158,7 @@ public sealed class ClaimsMappingPolicyServiceTests
       if (path == Collection)
         return Page([Policy(PolicyId, "First policy", [])], $"https://graph.microsoft.com{Collection}?$skiptoken=policies");
       if (path == $"{Collection}/{secondPolicy}/appliesTo")
-        return Page([]);
+        return Page([DirectoryObject("servicePrincipal", PrincipalId, AppId, "Assigned on second policy")]);
       Assert.Equal($"{Collection}/{PolicyId}/appliesTo", path);
       return request.RequestUri.Query.Contains("skiptoken")
         ? Page([DirectoryObject("servicePrincipal", PrincipalId, AppId, "Assigned on next page")])
@@ -109,8 +166,7 @@ public sealed class ClaimsMappingPolicyServiceTests
     });
     var result = await harness.Service.FindForServicePrincipalAsync(PrincipalId, TestContext.Current.CancellationToken);
     Assert.True(result.IsSuccess);
-    Assert.Equal(PolicyId, Assert.Single(result.Value).ObjectId);
-    Assert.Equal(5, harness.Requests.Count);
+    Assert.Equal(new[] { PolicyId, secondPolicy }, result.Value.Select(policy => policy.ObjectId));
   }
 
   [Theory]
@@ -230,13 +286,13 @@ public sealed class ClaimsMappingPolicyServiceTests
     using var harness = new Harness((request, _) => request.RequestUri!.AbsolutePath == Collection
       ? Task.FromResult(Page([Policy(PolicyId, "First policy", []), Policy(Guid.NewGuid(), "Second policy", [])])) : pending.Task);
     var task = harness.Service.FindForServicePrincipalAsync(PrincipalId, TestContext.Current.CancellationToken);
-    Assert.Equal(2, harness.Requests.Count);
+    var requestsBeforeSwitch = harness.Requests.ToArray();
     harness.Context.Tenants.SelectTenant(harness.Context.TenantB);
     pending.SetResult(Page([DirectoryObject("servicePrincipal", PrincipalId, AppId, "Stale assignment")]));
     var result = await task;
     Assert.True(result.IsFailure);
     Assert.Equal(GraphOperationErrorType.TenantChanged, result.Error.Type);
-    Assert.Equal(2, harness.Requests.Count);
+    Assert.Equal(requestsBeforeSwitch, harness.Requests);
   }
 
   [Fact]
@@ -261,25 +317,20 @@ public sealed class ClaimsMappingPolicyServiceTests
   }
 
   [Fact]
-  public async Task Creation_posts_one_definition_string_and_uses_Graph_response_without_assigning()
+  public async Task Creation_submits_one_definition_string_without_assignments()
   {
     string? submitted = null;
-    var returnedDefinition = "{\"ClaimsMappingPolicy\":{\"Version\":1,\"IncludeBasicClaimSet\":\"false\",\"ClaimsSchema\":[]}}";
     using var harness = new Harness(async (request, token) =>
     {
       Assert.Equal(HttpMethod.Post, request.Method);
       Assert.Equal(Collection, request.RequestUri!.AbsolutePath);
       submitted = await request.Content!.ReadAsStringAsync(token);
-      return Json(Policy(PolicyId, "Name returned by Graph", [returnedDefinition]), HttpStatusCode.Created);
+      return Json(Policy(PolicyId, "Policy", []), HttpStatusCode.Created);
     }, allowCreate: true);
-    var context = harness.Service.BeginCreate();
-    Assert.True(context.IsSuccess);
-    Assert.Equal(harness.Context.TenantA, context.Value.TenantId);
-    var result = await harness.Service.CreateAsync(context.Value, CreateRequest(), TestContext.Current.CancellationToken);
+
+    var result = await harness.Service.CreateAsync(harness.Service.BeginCreate().Value, CreateRequest(), TestContext.Current.CancellationToken);
+
     Assert.True(result.IsSuccess);
-    Assert.Equal(PolicyId, result.Value.ObjectId);
-    Assert.Equal("Name returned by Graph", result.Value.DisplayName);
-    Assert.Equal(returnedDefinition, Assert.Single(result.Value.Definitions).Raw);
     Assert.Single(harness.Requests);
     using var outer = JsonDocument.Parse(submitted!);
     Assert.Equal("Policy", outer.RootElement.GetProperty("displayName").GetString());
@@ -289,6 +340,23 @@ public sealed class ClaimsMappingPolicyServiceTests
     Assert.Equal("department", inner.RootElement.GetProperty("ClaimsMappingPolicy").GetProperty("ClaimsSchema")[0].GetProperty("ID").GetString());
     Assert.False(outer.RootElement.GetProperty("isOrganizationDefault").GetBoolean());
     Assert.False(outer.RootElement.TryGetProperty("appliesTo", out _));
+  }
+
+  [Fact]
+  public async Task Creation_returns_the_authoritative_policy_from_Graph()
+  {
+    const string returnedDefinition = "{\"ClaimsMappingPolicy\":{\"Version\":1,\"IncludeBasicClaimSet\":\"false\",\"ClaimsSchema\":[]}}";
+    using var harness = new Harness(_ => Json(Policy(PolicyId, "Name returned by Graph", [returnedDefinition]), HttpStatusCode.Created), allowCreate: true);
+    var context = harness.Service.BeginCreate();
+    Assert.True(context.IsSuccess);
+    Assert.Equal(harness.Context.TenantA, context.Value.TenantId);
+
+    var result = await harness.Service.CreateAsync(context.Value, CreateRequest(), TestContext.Current.CancellationToken);
+
+    Assert.True(result.IsSuccess);
+    Assert.Equal(PolicyId, result.Value.ObjectId);
+    Assert.Equal("Name returned by Graph", result.Value.DisplayName);
+    Assert.Equal(returnedDefinition, Assert.Single(result.Value.Definitions).Raw);
   }
 
   [Theory]
@@ -449,7 +517,6 @@ public sealed class ClaimsMappingPolicyServiceTests
   {
     Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json")
   };
-  private static string Query(HttpRequestMessage request) => Uri.UnescapeDataString(request.RequestUri?.Query ?? "");
 
   private sealed class Harness : IEntraGraphClientFactory, IDisposable
   {

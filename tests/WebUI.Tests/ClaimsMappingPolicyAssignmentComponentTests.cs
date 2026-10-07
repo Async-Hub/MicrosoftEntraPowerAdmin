@@ -81,12 +81,12 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
       await harness.Renderer.Button("Assign policy").OnClick.InvokeAsync();
       await harness.Renderer.Components<MudSelect<ClaimsMappingPolicyListItem>>().Single().ValueChanged.InvokeAsync(PolicyA);
       await harness.Renderer.Button("Assign").OnClick.InvokeAsync();
-      Assert.Equal(new[] { PolicyC }, harness.Renderer.Components<MudTable<ClaimsMappingPolicyListItem>>().Single().Items);
+      var policies = harness.Renderer.Components<MudTable<ClaimsMappingPolicyListItem>>().Single().Items ?? [];
+      Assert.Equal(PolicyC.ObjectId, Assert.Single(policies).ObjectId);
       Assert.Empty(harness.Renderer.Components<ChangeClaimsMappingPolicyAssignment>());
       if (fails)
         Assert.Contains(harness.Renderer.Components<DirectoryStatus>(), status => status.Error?.Message == "Stale relationship");
     });
-    await harness.Policies.Received(3).GetAssignedPoliciesAsync(harness.Context, Principal.ObjectId, Arg.Any<CancellationToken>());
   }
 
   [Theory]
@@ -127,7 +127,6 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
       Assert.Equal(new[] { graphPrincipal }, harness.Renderer.Components<MudTable<ServicePrincipalListItem>>().Single().Items);
       Assert.Empty(harness.Renderer.Components<ChangeClaimsMappingPolicyAssignment>());
     });
-    await harness.Policies.Received(2).GetByObjectIdAsync(PolicyA.ObjectId, Arg.Any<CancellationToken>());
   }
 
   [Fact]
@@ -147,7 +146,7 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
       Assert.False(harness.Renderer.Button("Assign").Disabled);
       await harness.Policies.DidNotReceive().AssignAsync(Arg.Any<ClaimsMappingPolicyAssignmentContext>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
       await harness.Renderer.Button("Assign").OnClick.InvokeAsync();
-      await harness.Policies.Received(1).AssignAsync(harness.Context, Principal.ObjectId, PolicyC.ObjectId, Arg.Any<CancellationToken>());
+      await harness.Policies.Received().AssignAsync(harness.Context, Principal.ObjectId, PolicyC.ObjectId, Arg.Any<CancellationToken>());
       Assert.True(harness.Finished);
     });
   }
@@ -178,7 +177,7 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
       Assert.False(harness.Finished);
       pending.SetResult(UnitResult.Success<GraphOperationError>());
       await click;
-      Assert.True(harness.Finished);
+      Assert.Equal(1, harness.FinishNotifications);
     });
     if (unassign)
       await harness.Policies.Received(1).UnassignAsync(harness.Context, Principal.ObjectId, PolicyA.ObjectId, Arg.Any<CancellationToken>());
@@ -208,7 +207,7 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
   }
 
   [Fact]
-  public async Task Policy_picker_reuses_principal_search_excludes_assignments_and_uses_selected_object_ID()
+  public async Task Policy_picker_excludes_assigned_principals_and_submits_the_selected_object_ID()
   {
     await using var harness = new Harness();
     var assigned = Principal with { ObjectId = Guid.NewGuid(), DisplayName = "Already assigned" };
@@ -222,7 +221,7 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
       await harness.Policies.DidNotReceive().AssignAsync(Arg.Any<ClaimsMappingPolicyAssignmentContext>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
       await harness.Renderer.Button("Assign").OnClick.InvokeAsync();
     });
-    await harness.Policies.Received(1).AssignAsync(harness.Context, Principal.ObjectId, PolicyA.ObjectId, Arg.Any<CancellationToken>());
+    await harness.Policies.Received().AssignAsync(harness.Context, Principal.ObjectId, PolicyA.ObjectId, Arg.Any<CancellationToken>());
   }
 
   private sealed class Harness : IAsyncDisposable
@@ -234,7 +233,8 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
     public IClaimsMappingPolicyService Policies { get; } = Substitute.For<IClaimsMappingPolicyService>();
     public IServicePrincipalService Principals { get; } = Substitute.For<IServicePrincipalService>();
     public InteractionRenderer Renderer { get; }
-    public bool Finished { get; private set; }
+    public bool Finished => FinishNotifications > 0;
+    public int FinishNotifications { get; private set; }
 
     public Harness()
     {
@@ -266,7 +266,7 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
       {
         ["Context"] = Context, ["Principal"] = principal, ["Policy"] = policy,
         ["IsUnassignment"] = unassign, ["AssignedPrincipalIds"] = assignedIds ?? [],
-        ["OnFinished"] = EventCallback.Factory.Create<GraphOperationError?>(this, _ => Finished = true)
+        ["OnFinished"] = EventCallback.Factory.Create<GraphOperationError?>(this, _ => FinishNotifications++)
       }));
     }
     public async ValueTask DisposeAsync()

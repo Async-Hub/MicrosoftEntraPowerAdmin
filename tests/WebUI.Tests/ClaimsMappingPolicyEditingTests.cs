@@ -46,12 +46,17 @@ public sealed class ClaimsMappingPolicyEditingTests
   [InlineData("{\"ClaimsMappingPolicy\":{\"Version\":1,\"IncludeBasicClaimSet\":\"true\",\"ClaimsSchema\":[{\"Source\":\"user\",\"ID\":\" mail \",\"JwtClaimType\":\"email\"}]}}")]
   public void Unknown_shapes_types_duplicates_and_normalization_loss_disable_definition_editing(string raw) => AssertProtected(raw);
 
-  [Fact]
-  public void Multiple_or_missing_definition_strings_are_not_rewritten()
+  [Theory]
+  [InlineData(0)]
+  [InlineData(2)]
+  public void Definition_editing_requires_exactly_one_definition_string(int definitionCount)
   {
-    var multiple = Policy(Supported) with { Definitions = [ClaimsMappingDefinitionParser.Parse(Supported), ClaimsMappingDefinitionParser.Parse(Supported)] };
-    Assert.False(ClaimsMappingDefinitionEditing.Inspect(multiple).CanEditDefinition);
-    Assert.False(ClaimsMappingDefinitionEditing.Inspect(multiple with { Definitions = [] }).CanEditDefinition);
+    var policy = Policy(Supported) with
+    {
+      Definitions = Enumerable.Repeat(ClaimsMappingDefinitionParser.Parse(Supported), definitionCount).ToArray()
+    };
+
+    Assert.False(ClaimsMappingDefinitionEditing.Inspect(policy).CanEditDefinition);
   }
 
   [Fact]
@@ -118,18 +123,40 @@ public sealed class ClaimsMappingPolicyEditingTests
   }
 
   [Fact]
-  public void Editing_reuses_creation_validation_including_name_placeholder_rows_and_claim_limit()
+  public void Rename_rejects_an_empty_display_name()
+  {
+    var result = new UpdateClaimsMappingPolicyRequest(" ").CreatePatch(Policy(Supported));
+
+    Assert.True(result.IsFailure);
+    Assert.Contains("Display Name", result.Error);
+  }
+
+  [Fact]
+  public void Definition_update_rejects_more_than_fifty_claims()
   {
     var policy = Policy(Supported);
-    var request = ClaimsMappingDefinitionEditing.Inspect(policy).Definition.Value;
-    Assert.Contains("Display Name", new UpdateClaimsMappingPolicyRequest(" ").CreatePatch(policy).Error);
-    Assert.Contains("50", new UpdateClaimsMappingPolicyRequest("Policy", request with
+    var definition = ClaimsMappingDefinitionEditing.Inspect(policy).Definition.Value;
+
+    var result = new UpdateClaimsMappingPolicyRequest("Policy", definition with
     {
-      ClaimsSchema = Enumerable.Repeat(request.ClaimsSchema[0], 51).ToArray()
-    }).CreatePatch(policy).Error);
-    var draft = ClaimsMappingPolicyDraft.From(request);
+      ClaimsSchema = Enumerable.Repeat(definition.ClaimsSchema[0], 51).ToArray()
+    }).CreatePatch(policy);
+
+    Assert.True(result.IsFailure);
+    Assert.Contains("50", result.Error);
+  }
+
+  [Fact]
+  public void Definition_update_rejects_an_unfilled_claim_row()
+  {
+    var policy = Policy(Supported);
+    var draft = ClaimsMappingPolicyDraft.From(ClaimsMappingDefinitionEditing.Inspect(policy).Definition.Value);
     draft.Claims.Add(new());
-    Assert.Contains("JWT or SAML", new UpdateClaimsMappingPolicyRequest("Policy", draft.ToRequest()).CreatePatch(policy).Error);
+
+    var result = new UpdateClaimsMappingPolicyRequest("Policy", draft.ToRequest()).CreatePatch(policy);
+
+    Assert.True(result.IsFailure);
+    Assert.Contains("JWT or SAML", result.Error);
   }
 
   private static void AssertProtected(string raw)
