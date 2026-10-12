@@ -1,5 +1,5 @@
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 using CSharpFunctionalExtensions;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tests;

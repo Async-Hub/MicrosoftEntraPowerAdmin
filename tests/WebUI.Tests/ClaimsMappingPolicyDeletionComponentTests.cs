@@ -1,5 +1,7 @@
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Shared;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.ClaimsMappingPolicies;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.EnterpriseApplications;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Shared;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 using CSharpFunctionalExtensions;
 using Microsoft.AspNetCore.Components;
@@ -10,8 +12,8 @@ using Microsoft.JSInterop;
 using MudBlazor;
 using MudBlazor.Services;
 using NSubstitute;
-using PolicyPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Pages.Admin.ClaimsMappingPolicyDetails;
-using PolicyListPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Pages.Admin.ClaimsMappingPolicies;
+using PolicyPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.ClaimsMappingPolicies.ClaimsMappingPolicyDetailsPage;
+using PolicyListPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.ClaimsMappingPolicies.ClaimsMappingPoliciesPage;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tests;
 

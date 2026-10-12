@@ -1,9 +1,9 @@
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 using Microsoft.Identity.Client;
 using Microsoft.Identity.Web;

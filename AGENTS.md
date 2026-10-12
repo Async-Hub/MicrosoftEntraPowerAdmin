@@ -828,6 +828,40 @@ Do not store Graph tokens in browser storage.
 
 Use ASP.NET Core Blazor Web App with Interactive Server according to the existing project architecture.
 
+## LIFT-Based WebUI Organization
+
+Organize `src/WebUI` by application feature using LIFT: Locate related code
+easily, Identify responsibilities through clear names, keep folders Flat,
+and Try to be DRY without introducing unnecessary abstractions.
+
+* Place feature directories directly under the WebUI project root, such as
+  `AppRegistrations`, `EnterpriseApplications`, and `ClaimsMappingPolicies`.
+  Do not add a `Features` directory or group files into generic `Pages`,
+  `Components`, `Services`, or `Models` directories solely by technical type.
+* Keep each feature's components, services, models, and state together.
+  Prefer flat directories; add subdirectories only when feature complexity
+  justifies them. Preserve static assets, configuration, and framework-specific
+  directories such as `wwwroot` and `Properties`.
+* Give every routable Razor component (including details pages) a `Page`
+  suffix, such as `AppRegistrationsPage.razor`. Preserve existing route URLs.
+* Name non-routable components by their responsibility, such as
+  `CopyIdentifier`, without unnecessary `Page` or `Component` suffixes.
+* Keep component C# logic in a matching `.razor.cs` partial class, as described
+  below. Keep any `.razor.css` isolation file alongside its component and
+  rename these files together.
+* Match namespaces to folders, for example
+  `AsyncHub.MicrosoftEntraPowerAdmin.WebUI.AppRegistrations` or
+  `AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Shared`. Update partial class names,
+  imports, references, and dependency injection registrations when moving files.
+  Preserve the scope of Razor imports and authorization attributes.
+* Use `Shared` for genuinely reusable components and utilities, `Layout` for
+  application layout, and `Infrastructure` for cross-cutting infrastructure.
+  Components reused across features still belong to their owning feature when
+  their responsibility is feature-specific.
+* Keep `App.razor`, `Routes.razor`, and the root `_Imports.razor` at the project
+  root. Reuse existing abstractions and dependency lifetimes; folder organization
+  does not require new architectural layers.
+
 ## Use Code-Behind
 
 Blazor components must use **code-behind files** for C# logic.

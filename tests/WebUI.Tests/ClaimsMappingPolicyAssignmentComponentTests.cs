@@ -1,5 +1,7 @@
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Shared;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.ClaimsMappingPolicies;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.EnterpriseApplications;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Shared;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 using CSharpFunctionalExtensions;
 using Microsoft.AspNetCore.Components;
@@ -116,7 +118,7 @@ public sealed class ClaimsMappingPolicyAssignmentComponentTests
     await harness.Renderer.Dispatcher.InvokeAsync(async () =>
     {
       await harness.Renderer.MountAsync<MudPopoverProvider>(ParameterView.Empty);
-      await harness.Renderer.MountAsync<Components.Pages.Admin.ClaimsMappingPolicyDetails>(ParameterView.FromDictionary(
+      await harness.Renderer.MountAsync<ClaimsMappingPolicies.ClaimsMappingPolicyDetailsPage>(ParameterView.FromDictionary(
         new Dictionary<string, object?> { ["ObjectId"] = PolicyA.ObjectId.ToString() }));
       await harness.Renderer.Button(unassign ? "Unassign" : "Assign to Enterprise Application").OnClick.InvokeAsync();
       if (!unassign)

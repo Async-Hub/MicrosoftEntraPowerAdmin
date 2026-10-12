@@ -1,4 +1,4 @@
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 

@@ -1,0 +1,12 @@
+using Microsoft.AspNetCore.Components;
+
+namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.ClaimsMappingPolicies;
+
+public partial class ClaimsMappingPolicyTable
+{
+  [Parameter, EditorRequired] public IReadOnlyList<ClaimsMappingPolicyListItem> Policies { get; set; } = [];
+  [Parameter] public EventCallback<Guid> OnOpen { get; set; }
+  [Parameter] public EventCallback<ClaimsMappingPolicyListItem> OnUnassign { get; set; }
+  [Parameter] public bool ActionsDisabled { get; set; }
+  [Parameter] public string EmptyMessage { get; set; } = "No Claims Mapping Policies in the current tenant.";
+}

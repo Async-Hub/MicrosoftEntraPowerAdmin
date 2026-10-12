@@ -1,0 +1,19 @@
+
+<MudPaper Outlined="true" Class="pa-4 my-4">
+  <MudText Typo="Typo.h5" HtmlTag="h2">Create policy</MudText>
+  <MudText Class="mb-3">Create an unassigned policy in @_tenantName. Version is fixed at 1.</MudText>
+  <DirectoryStatus Error="_error" IsLoading="_isCreating" />
+  <MudTextField T="string" Label="Display Name" @bind-Value="_draft.DisplayName" @bind-Value:after="DraftChanged"
+                Immediate="true" Required="true" Disabled="IsDisabled" />
+  <ClaimsMappingPolicyDefinitionEditor Draft="_draft" IsDisabled="IsDisabled" OnChanged="DraftChanged" />
+  <MudButton OnClick="Review" Disabled="IsDisabled" Variant="Variant.Outlined" Class="ma-2">Review</MudButton>
+  @if (_preview is not null && _review is { } reviewed)
+  {
+    <MudText Typo="Typo.h6">Review generated definition</MudText>
+    <MudText>@reviewed.DisplayName — @reviewed.ClaimsSchema.Count claims. The policy will have no assignments.</MudText>
+    <pre style="white-space: pre-wrap; overflow-wrap: anywhere;">@_preview</pre>
+  }
+  <MudButton OnClick="CreateAsync" Disabled="@(IsDisabled || _review is null)" Variant="Variant.Filled"
+             Color="Color.Primary" Class="ma-2">Create policy</MudButton>
+  <MudButton OnClick="@(() => OnCancel.InvokeAsync())" Disabled="_isCreating" Class="ma-2">Cancel</MudButton>
+</MudPaper>

@@ -1,6 +1,9 @@
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.AppRegistrations;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.ClaimsMappingPolicies;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.EnterpriseApplications;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 using CSharpFunctionalExtensions;
 using Microsoft.AspNetCore.Components;
@@ -10,8 +13,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using MudBlazor.Services;
 using NSubstitute;
-using ApplicationPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Pages.Admin.ApplicationDetails;
-using PrincipalPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components.Pages.Admin.ServicePrincipalDetails;
+using ApplicationPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.AppRegistrations.ApplicationDetailsPage;
+using PrincipalPage = AsyncHub.MicrosoftEntraPowerAdmin.WebUI.EnterpriseApplications.ServicePrincipalDetailsPage;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tests;
 

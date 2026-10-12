@@ -1,7 +1,9 @@
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.AppRegistrations;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.EnterpriseApplications;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 using CSharpFunctionalExtensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Graph;

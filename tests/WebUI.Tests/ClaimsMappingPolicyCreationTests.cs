@@ -1,5 +1,5 @@
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.ClaimsMappingPolicies;
 using System.Text.Json;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 
 namespace AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tests;
 

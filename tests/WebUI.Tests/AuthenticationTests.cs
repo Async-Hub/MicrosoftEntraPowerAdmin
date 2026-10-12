@@ -1,3 +1,4 @@
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -13,7 +14,6 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Authentication;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Identity.Client;
 using Microsoft.Identity.Web;

@@ -1,6 +1,9 @@
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.AppRegistrations;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Authentication;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Components;
-using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Graph;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.ClaimsMappingPolicies;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.EnterpriseApplications;
+using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Infrastructure;
 using AsyncHub.MicrosoftEntraPowerAdmin.WebUI.Tenants;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
