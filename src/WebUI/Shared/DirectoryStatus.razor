@@ -1,10 +1,6 @@
 <MudPaper Class="pa-4 mb-4" Outlined="true">
-  <MudText Typo="Typo.h6">Current Tenant: @TenantName</MudText>
-  @if (TenantId is { } tenantId)
-  {
-    <MudText Typo="Typo.caption">@tenantId</MudText>
-  }
-  else
+  <MudText Typo="Typo.h6">Current Tenant Name: <b>@TenantName</b> | ID: <b>@TenantId</b></MudText>
+  @if (TenantId is null)
   {
     <MudAlert Severity="Severity.Info">Select a tenant to continue.</MudAlert>
   }
